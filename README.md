@@ -14,3 +14,7 @@ npm run dev
 npm test
 npm run build
 ```
+
+## Repo
+
+https://github.com/ilovemagicker/onyx-plinko
