@@ -2,6 +2,7 @@
  * Phaser Matter Plinko scene factory.
  * Phaser is imported dynamically so Node/SSR never evaluates the browser bundle.
  */
+import { DEMO_BIN_WEIGHTS, pickBinIndex } from "@/lib/bin-odds";
 import { DEFAULT_MULTIPLIERS } from "@/lib/multipliers";
 import {
   triangleGuideEndpoints,
@@ -26,7 +27,15 @@ type PendingDrop = {
   resolve: (result: DropResult) => void;
   reject: (err: Error) => void;
   ballId: number;
+  /** Settlement bin — physics is visual guidance only. */
+  targetBin: number;
   timeoutId: ReturnType<typeof setTimeout>;
+};
+
+type MatterBodyWithMotion = MatterBody & {
+  velocity?: { x: number; y: number };
+  _cleanupGlow?: () => void;
+  _targetBin?: number;
 };
 
 function hashToUnit(seed: string): number {
@@ -90,7 +99,8 @@ export async function createPlinkoGame(
     spawnBall: (
       ballId: number,
       seed: string | undefined,
-      onTimeout: (x: number, body: MatterBody) => void,
+      targetBin: number,
+      onTimeout: (body: MatterBody) => void,
     ) => MatterBody;
     removeBall: (body: MatterBody) => void;
   };
@@ -132,7 +142,8 @@ export async function createPlinkoGame(
 
       sceneApi = {
         applySpeed: (s) => this.applySpeed(s),
-        spawnBall: (id, seed, onTimeout) => this.spawnBall(id, seed, onTimeout),
+        spawnBall: (id, seed, targetBin, onTimeout) =>
+          this.spawnBall(id, seed, targetBin, onTimeout),
         removeBall: (body) => this.removeBall(body),
       };
     }
@@ -367,20 +378,25 @@ export async function createPlinkoGame(
       const ballBody = [a, b].find((body) => body.label?.startsWith("ball-"));
       if (!ballBody || !ballBody.label) return;
 
-      const binIndex = Number(binLabel.slice(4));
       const ballId = Number(ballBody.label.slice(5));
-      finishDrop(ballId, binIndex, ballBody);
+      // Always settle on the pre-chosen target (weighted odds), not the sensor.
+      finishDrop(ballId, ballBody);
     }
 
     spawnBall(
       ballId: number,
       seed: string | undefined,
-      onTimeout: (x: number, body: MatterBody) => void,
+      targetBin: number,
+      onTimeout: (body: MatterBody) => void,
     ): MatterBody {
       const unit = seed ? hashToUnit(seed) : Math.random();
-      // Spawn near pyramid apex with small jitter (not full board width)
-      const topSpread = Math.min(pegSpacing * 1.1, width * 0.12);
-      const startX = width / 2 + (unit - 0.5) * topSpread;
+      const binW = width / binCount;
+      const targetX = (targetBin + 0.5) * binW;
+      // Spawn near apex, biased toward the chosen bin so guidance looks natural.
+      const topSpread = Math.min(pegSpacing * 0.9, width * 0.1);
+      const apex = width / 2;
+      const startX =
+        apex + (targetX - apex) * 0.28 + (unit - 0.5) * topSpread;
       const radius = 6.5;
 
       // Outer glow
@@ -403,24 +419,38 @@ export async function createPlinkoGame(
         },
       });
 
-      const body = (visual as unknown as { body: MatterBody }).body;
+      const body = (visual as unknown as { body: MatterBodyWithMotion }).body;
+      body._targetBin = targetBin;
 
-      // Keep glow glued via update — cheap follow using Matter body position
+      const matterBodyApi = this.matter.body as unknown as {
+        setVelocity: (
+          b: MatterBody,
+          velocity: { x: number; y: number },
+        ) => void;
+      };
+
+      // Keep glow glued + gently steer toward target bin while falling.
       const follow = () => {
         if (!body?.position || !glow.active) return;
         glow.setPosition(body.position.x, body.position.y);
+        const dx = targetX - body.position.x;
+        const vx = body.velocity?.x ?? 0;
+        const vy = body.velocity?.y ?? 0;
+        // Mild horizontal pull; clamp so peg bounces still read as physics.
+        const steer = Math.max(-2.8, Math.min(2.8, dx * 0.045));
+        const newVx = vx * 0.88 + steer;
+        matterBodyApi.setVelocity(body, { x: newVx, y: vy });
       };
       this.events.on("update", follow);
       const cleanupGlow = () => {
         this.events.off("update", follow);
         if (glow.active) glow.destroy();
       };
-      (body as MatterBody & { _cleanupGlow?: () => void })._cleanupGlow = cleanupGlow;
+      body._cleanupGlow = cleanupGlow;
 
       const timeoutMs = Math.max(4000, 12000 / Math.max(speedScale, 0.5));
       const timeoutId = setTimeout(() => {
-        const x = body?.position?.x ?? width / 2;
-        onTimeout(x, body);
+        onTimeout(body);
       }, timeoutMs);
 
       const entry = pending.get(ballId);
@@ -431,7 +461,7 @@ export async function createPlinkoGame(
 
     removeBall(body: MatterBody) {
       try {
-        const withGlow = body as MatterBody & { _cleanupGlow?: () => void };
+        const withGlow = body as MatterBodyWithMotion;
         withGlow._cleanupGlow?.();
         if (body.gameObject) body.gameObject.destroy();
         else this.matter.world.remove(body as never);
@@ -441,7 +471,7 @@ export async function createPlinkoGame(
     }
   }
 
-  function finishDrop(ballId: number, binIndex: number, ballBody?: MatterBody) {
+  function finishDrop(ballId: number, ballBody?: MatterBody) {
     const entry = pending.get(ballId);
     if (!entry) return;
     pending.delete(ballId);
@@ -451,17 +481,11 @@ export async function createPlinkoGame(
       sceneApi.removeBall(ballBody);
     }
 
-    const safeIndex = Math.min(binCount - 1, Math.max(0, binIndex));
+    const safeIndex = Math.min(binCount - 1, Math.max(0, entry.targetBin));
     entry.resolve({
       binIndex: safeIndex,
       multiplier: multipliers[safeIndex] ?? 1,
     });
-  }
-
-  function resolveByX(ballId: number, x: number, ballBody?: MatterBody) {
-    const binW = width / binCount;
-    const binIndex = Math.min(binCount - 1, Math.max(0, Math.floor(x / binW)));
-    finishDrop(ballId, binIndex, ballBody);
   }
 
   const game = new Phaser.Game({
@@ -510,14 +534,17 @@ export async function createPlinkoGame(
             return;
           }
           const ballId = nextBallId++;
+          // Settlement odds from published weights; physics only steers visually.
+          const targetBin = pickBinIndex(DEMO_BIN_WEIGHTS);
           pending.set(ballId, {
             resolve,
             reject,
             ballId,
+            targetBin,
             timeoutId: setTimeout(() => undefined, 0),
           });
-          sceneApi.spawnBall(ballId, seed, (x, body) => {
-            resolveByX(ballId, x, body);
+          sceneApi.spawnBall(ballId, seed, targetBin, (body) => {
+            finishDrop(ballId, body);
           });
         });
 
