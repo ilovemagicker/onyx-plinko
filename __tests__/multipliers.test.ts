@@ -10,18 +10,24 @@ describe("DEFAULT_MULTIPLIERS", () => {
     expect(DEFAULT_MULTIPLIERS.length % 2).toBe(1);
   });
 
-  it("matches the 17-bin edges-high reference table", () => {
+  it("matches the 17-bin edges-modest polished table", () => {
     expect(DEFAULT_MULTIPLIERS).toEqual([
-      100, 15, 6, 3, 1.4, 0.7, 0.5, 0.3, 0.5, 0.3, 0.5, 0.7, 1.4, 3, 6, 15,
-      100,
+      25, 10, 5, 3, 1.5, 1, 0.7, 0.5, 0.8, 0.5, 0.7, 1, 1.5, 3, 5, 10, 25,
     ]);
   });
 
   it("has high multipliers at both edges", () => {
     const mid = Math.floor(DEFAULT_MULTIPLIERS.length / 2);
-    expect(DEFAULT_MULTIPLIERS[0]).toBeGreaterThan(DEFAULT_MULTIPLIERS[mid]);
+    expect(DEFAULT_MULTIPLIERS[0]).toBeGreaterThan(DEFAULT_MULTIPLIERS[mid]!);
     expect(DEFAULT_MULTIPLIERS[DEFAULT_MULTIPLIERS.length - 1]).toBeGreaterThan(
-      DEFAULT_MULTIPLIERS[mid],
+      DEFAULT_MULTIPLIERS[mid]!,
+    );
+  });
+
+  it("keeps edge prizes at or below 40x", () => {
+    expect(DEFAULT_MULTIPLIERS[0]).toBeLessThanOrEqual(40);
+    expect(DEFAULT_MULTIPLIERS[DEFAULT_MULTIPLIERS.length - 1]).toBeLessThanOrEqual(
+      40,
     );
   });
 });

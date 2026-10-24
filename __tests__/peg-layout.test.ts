@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  guideEnvelopeXAtY,
   triangleGuideEndpoints,
   trianglePegCounts,
   trianglePegPositions,
@@ -80,5 +81,38 @@ describe("triangleGuideEndpoints", () => {
     });
     expect(g.left[0].x).toBeGreaterThan(g.left[1].x);
     expect(g.right[0].x).toBeLessThan(g.right[1].x);
+  });
+});
+
+describe("guideEnvelopeXAtY", () => {
+  it("interpolates between slant endpoints", () => {
+    const g = triangleGuideEndpoints({
+      binCount: 17,
+      width: 360,
+      topY: 50,
+      bottomY: 380,
+      startPegs: 3,
+      pad: 2,
+    });
+    const midY = (g.left[0].y + g.left[1].y) / 2;
+    const env = guideEnvelopeXAtY(g, midY);
+    expect(env.leftX).toBeGreaterThan(g.left[1].x); // left slant opens downward
+    expect(env.leftX).toBeLessThan(g.left[0].x);
+    expect(env.rightX).toBeGreaterThan(env.leftX);
+    expect(env.rightX - env.leftX).toBeLessThan(360);
+  });
+
+  it("keeps mid envelope narrower than bottom", () => {
+    const g = triangleGuideEndpoints({
+      binCount: 17,
+      width: 360,
+      topY: 50,
+      bottomY: 380,
+      startPegs: 3,
+      pad: 2,
+    });
+    const top = guideEnvelopeXAtY(g, g.left[0].y);
+    const bot = guideEnvelopeXAtY(g, g.left[1].y);
+    expect(top.rightX - top.leftX).toBeLessThan(bot.rightX - bot.leftX);
   });
 });

@@ -1,10 +1,10 @@
 /**
  * Reference-style Plinko payout table: 17 bins, edges high / center low.
- * Matches the Japanese-style board layout (high side payouts).
+ * Edge prizes kept modest (25x) so jackpots stay rare without blowing RTP.
  * Demo only — not used for real-fund settlement in v1.
  */
 export const DEFAULT_MULTIPLIERS: number[] = [
-  100, 15, 6, 3, 1.4, 0.7, 0.5, 0.3, 0.5, 0.3, 0.5, 0.7, 1.4, 3, 6, 15, 100,
+  25, 10, 5, 3, 1.5, 1, 0.7, 0.5, 0.8, 0.5, 0.7, 1, 1.5, 3, 5, 10, 25,
 ];
 
 /**

@@ -5,6 +5,7 @@
 import { DEMO_BIN_WEIGHTS, pickBinIndex } from "@/lib/bin-odds";
 import { DEFAULT_MULTIPLIERS } from "@/lib/multipliers";
 import {
+  guideEnvelopeXAtY,
   triangleGuideEndpoints,
   trianglePegCounts,
   trianglePegPositions,
@@ -52,10 +53,10 @@ function formatMult(m: number): string {
 }
 
 function binColor(mult: number): number {
-  if (mult >= 50) return 0xb91c1c;
-  if (mult >= 15) return 0xef4444;
-  if (mult >= 6) return 0xf97316;
-  if (mult >= 3) return 0xfbbf24;
+  if (mult >= 20) return 0xb91c1c;
+  if (mult >= 8) return 0xef4444;
+  if (mult >= 4) return 0xf97316;
+  if (mult >= 2) return 0xfbbf24;
   if (mult >= 1) return 0x2dd4bf;
   return 0x52525b;
 }
@@ -93,6 +94,9 @@ export async function createPlinkoGame(
 
   // Peg spacing for spawn jitter (set in createPegs).
   let pegSpacing = width / (binCount + 1);
+  /** Triangle rail endpoints — used to clamp balls inside the pyramid. */
+  let guideEndpoints: ReturnType<typeof triangleGuideEndpoints> | null = null;
+  const BIN_TOP = height - 100;
 
   type SceneApi = {
     applySpeed: (speed: number) => void;
@@ -208,6 +212,7 @@ export async function createPlinkoGame(
         a: { x: number; y: number },
         b: { x: number; y: number },
         label: string,
+        thickness: number,
       ) => {
         const dx = b.x - a.x;
         const dy = b.y - a.y;
@@ -215,28 +220,45 @@ export async function createPlinkoGame(
         const angle = Math.atan2(dy, dx);
         const cx = (a.x + b.x) / 2;
         const cy = (a.y + b.y) / 2;
-        this.matter.add.rectangle(cx, cy, len, 6, {
+        this.matter.add.rectangle(cx, cy, len, thickness, {
           isStatic: true,
           label,
           angle,
-          friction: 0.08,
-          restitution: 0.4,
+          friction: 0.12,
+          restitution: 0.25,
           collisionFilter: {
             category: this.pegCategory,
             mask: this.ballCategory,
           },
         });
-        // Soft visual rail
-        const g = this.add.graphics();
-        g.lineStyle(2, 0xc8f542, 0.22);
-        g.lineBetween(a.x, a.y, b.x, b.y);
-        g.lineStyle(6, 0xffb7c5, 0.08);
-        g.lineBetween(a.x, a.y, b.x, b.y);
-        g.setDepth(-1);
       };
 
-      addSegment(left[0], left[1], "guide-left");
-      addSegment(right[0], right[1], "guide-right");
+      // Thick primary rails + slightly outer backup to stop tunneling.
+      addSegment(left[0], left[1], "guide-left", 14);
+      addSegment(right[0], right[1], "guide-right", 14);
+      const outward = 8;
+      addSegment(
+        { x: left[0].x - outward, y: left[0].y },
+        { x: left[1].x - outward, y: left[1].y },
+        "guide-left-outer",
+        10,
+      );
+      addSegment(
+        { x: right[0].x + outward, y: right[0].y },
+        { x: right[1].x + outward, y: right[1].y },
+        "guide-right-outer",
+        10,
+      );
+
+      // Soft visual rail on the inner face
+      const g = this.add.graphics();
+      g.lineStyle(2.5, 0xc8f542, 0.28);
+      g.lineBetween(left[0].x, left[0].y, left[1].x, left[1].y);
+      g.lineBetween(right[0].x, right[0].y, right[1].x, right[1].y);
+      g.lineStyle(7, 0xffb7c5, 0.1);
+      g.lineBetween(left[0].x, left[0].y, left[1].x, left[1].y);
+      g.lineBetween(right[0].x, right[0].y, right[1].x, right[1].y);
+      g.setDepth(-1);
     }
 
     private createPegs() {
@@ -261,9 +283,13 @@ export async function createPlinkoGame(
         bottomY,
         marginX,
         startPegs: TRIANGLE_START_PEGS,
-        pad: 12,
+        // Small pad + thick rails → gutters shrink; ball stays in pyramid.
+        pad: 2,
+        extendTop: 22,
+        extendBottom: 28,
       });
       pegSpacing = guides.spacing;
+      guideEndpoints = guides;
 
       this.createSlantGuides(guides.left, guides.right);
 
@@ -395,14 +421,21 @@ export async function createPlinkoGame(
       // Spawn near apex, biased toward the chosen bin so guidance looks natural.
       const topSpread = Math.min(pegSpacing * 0.9, width * 0.1);
       const apex = width / 2;
-      const startX =
-        apex + (targetX - apex) * 0.28 + (unit - 0.5) * topSpread;
       const radius = 6.5;
+      const spawnY = 26;
+      let startX =
+        apex + (targetX - apex) * 0.28 + (unit - 0.5) * topSpread;
+      // Keep spawn strictly inside the triangle envelope at the apex.
+      if (guideEndpoints) {
+        const env = guideEnvelopeXAtY(guideEndpoints, spawnY);
+        const inset = radius + 3;
+        startX = Math.min(env.rightX - inset, Math.max(env.leftX + inset, startX));
+      }
 
       // Outer glow
-      const glow = this.add.circle(startX, 26, radius + 5, 0xc8f542, 0.28);
+      const glow = this.add.circle(startX, spawnY, radius + 5, 0xc8f542, 0.28);
       glow.setDepth(4);
-      const visual = this.add.circle(startX, 26, radius, 0xd4ff6a, 1);
+      const visual = this.add.circle(startX, spawnY, radius, 0xd4ff6a, 1);
       visual.setStrokeStyle(2, 0xffffff, 0.65);
       visual.setDepth(5);
 
@@ -427,15 +460,47 @@ export async function createPlinkoGame(
           b: MatterBody,
           velocity: { x: number; y: number },
         ) => void;
+        setPosition: (
+          b: MatterBody,
+          position: { x: number; y: number },
+        ) => void;
       };
 
       // Keep glow glued + gently steer toward target bin while falling.
+      // Also hard-clamp X inside the triangle rails above the bin shelf.
       const follow = () => {
         if (!body?.position || !glow.active) return;
-        glow.setPosition(body.position.x, body.position.y);
-        const dx = targetX - body.position.x;
-        const vx = body.velocity?.x ?? 0;
+        let x = body.position.x;
+        const y = body.position.y;
+        let vx = body.velocity?.x ?? 0;
         const vy = body.velocity?.y ?? 0;
+
+        if (guideEndpoints && y < BIN_TOP - 6) {
+          const env = guideEnvelopeXAtY(guideEndpoints, y);
+          const inset = radius + 2;
+          const minX = env.leftX + inset;
+          const maxX = env.rightX - inset;
+          if (x < minX) {
+            x = minX;
+            vx = Math.abs(vx) * 0.25 + 0.4;
+            matterBodyApi.setPosition(body, { x, y });
+          } else if (x > maxX) {
+            x = maxX;
+            vx = -Math.abs(vx) * 0.25 - 0.4;
+            matterBodyApi.setPosition(body, { x, y });
+          } else {
+            // Soft inward pull when near the rail so gutters never look empty.
+            const edgeZone = Math.max(8, pegSpacing * 0.35);
+            if (x - minX < edgeZone) {
+              vx += 0.35;
+            } else if (maxX - x < edgeZone) {
+              vx -= 0.35;
+            }
+          }
+        }
+
+        glow.setPosition(x, y);
+        const dx = targetX - x;
         // Mild horizontal pull; clamp so peg bounces still read as physics.
         const steer = Math.max(-2.8, Math.min(2.8, dx * 0.045));
         const newVx = vx * 0.88 + steer;

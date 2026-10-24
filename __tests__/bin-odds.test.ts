@@ -46,12 +46,12 @@ describe("DEMO_BIN_WEIGHTS", () => {
     }
   });
 
-  it("has reachable edges vs raw Galton 1/2^14", () => {
+  it("keeps edges rare (~0.02% band, still above raw Galton)", () => {
     const edge = DEMO_BIN_WEIGHTS[0]!;
-    const rawGaltonEdge = 1 / 2 ** 14; // ~0.000061
-    expect(edge).toBeGreaterThan(rawGaltonEdge * 5);
-    expect(edge).toBeGreaterThan(0.0004); // ~0.04%+
-    expect(edge).toBeLessThan(0.02);
+    const rawGaltonEdge = 1 / 2 ** 16; // ~0.000015
+    expect(edge).toBeGreaterThan(rawGaltonEdge);
+    expect(edge).toBeGreaterThanOrEqual(0.00015); // ≥0.015%
+    expect(edge).toBeLessThanOrEqual(0.0004); // ≤0.04%
   });
 
   it("matches softenedBinomialWeights at the published power", () => {
@@ -59,6 +59,11 @@ describe("DEMO_BIN_WEIGHTS", () => {
     for (let i = 0; i < 17; i++) {
       expect(DEMO_BIN_WEIGHTS[i]).toBeCloseTo(rebuilt[i]!, 12);
     }
+  });
+
+  it("uses a Galton-leaning power (>= 0.65)", () => {
+    expect(DEMO_BIN_ODDS_POWER).toBeGreaterThanOrEqual(0.65);
+    expect(DEMO_BIN_ODDS_POWER).toBeLessThanOrEqual(1);
   });
 });
 
@@ -100,23 +105,22 @@ describe("pickBinIndex", () => {
     expect(pickBinIndex(w, () => 0.5)).toBe(2);
   });
 
-  it("smoke: 20k samples prefer center over edges", () => {
+  it("smoke: 50k samples prefer center; edges stay rare", () => {
     const counts = new Array(DEMO_BIN_WEIGHTS.length).fill(0);
-    let i = 0;
-    // Deterministic LCG so the test is stable across runs.
     let state = 123456789;
     const rng = () => {
       state = (Math.imul(1664525, state) + 1013904223) >>> 0;
       return state / 4294967296;
     };
-    const N = 20_000;
-    for (; i < N; i++) {
+    const N = 50_000;
+    for (let i = 0; i < N; i++) {
       counts[pickBinIndex(DEMO_BIN_WEIGHTS, rng)]++;
     }
     const mid = Math.floor(DEMO_BIN_WEIGHTS.length / 2);
     expect(counts[mid]).toBeGreaterThan(counts[0]);
     expect(counts[mid]).toBeGreaterThan(counts[counts.length - 1]);
-    // Edges should appear at least a few times in 20k (reachable).
-    expect(counts[0] + counts[counts.length - 1]).toBeGreaterThan(5);
+    // Edges rare: each well under 0.1% of samples in this draw.
+    expect(counts[0]).toBeLessThan(N * 0.001);
+    expect(counts[counts.length - 1]).toBeLessThan(N * 0.001);
   });
 });

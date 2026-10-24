@@ -5,8 +5,8 @@
  * weights so jackpot edges stay reachable and RTP stays a mild house edge.
  *
  * Shape: softened Galton — weight ∝ C(n,k)^power with power < 1 (not raw 1/2^n).
- * With 100x edge multipliers, edge mass ≈0.05% each keeps RTP in ~0.94–0.99;
- * 0.4%+ edges would push RTP well above 1 without changing the payout table.
+ * power closer to 1 → rarer edges. With 25x edges, power≈0.7 keeps each edge
+ * around ~0.02% and RTP in ~0.94–0.99.
  */
 
 import { DEFAULT_MULTIPLIERS } from "@/lib/multipliers";
@@ -52,8 +52,9 @@ export function normalizeWeights(weights: number[]): number[] {
 /**
  * Softening power for the published demo table.
  * power=1 → classic Galton; lower → fatter tails / more reachable edges.
+ * Raised toward 1 so edge bins stay rare (~0.02% each).
  */
-export const DEMO_BIN_ODDS_POWER = 0.6;
+export const DEMO_BIN_ODDS_POWER = 0.7;
 
 /** Length-17 published probabilities (sum ≈ 1), symmetric, center-peaked. */
 export const DEMO_BIN_WEIGHTS: number[] = softenedBinomialWeights(
