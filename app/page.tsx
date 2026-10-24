@@ -7,6 +7,7 @@ import { AssetToggle } from "@/components/AssetToggle";
 import { Controls } from "@/components/Controls";
 import { DemoBanner } from "@/components/DemoBanner";
 import { ShellHeader } from "@/components/ShellHeader";
+import { WldHint } from "@/components/WldHint";
 import type { PlinkoBoardHandle } from "@/game/types";
 import type { Asset } from "@/lib/assets";
 import { DEFAULT_BALL_COST } from "@/lib/ball-cost";
@@ -63,8 +64,10 @@ export default function Home() {
     ballCostRef.current = ballCost;
   }, [ballCost]);
 
-  // Reload demo balance when identity changes — wait until idle so mid-drop
-  // settlement (bound to start-of-drop address) is not clobbered.
+  // Same connected address (or guest) keys BOTH WLD and SOL buckets —
+  // one identity, two balances. Reload when identity changes; wait until
+  // idle so mid-drop settlement (bound to start-of-drop address) is not
+  // clobbered.
   useEffect(() => {
     if (busy || autoRunning) return;
     const next = loadBalance(address, asset, creditGuestStart());
@@ -268,11 +271,19 @@ export default function Home() {
       <div className="flex items-center justify-between gap-2">
         <AssetToggle asset={asset} onChange={onAssetChange} />
         <p className="text-xs text-[var(--muted)]">
-          {address ? "Wallet demo" : "Guest demo"}
+          {address
+            ? asset === "WLD"
+              ? "WLD demo · same wallet id"
+              : "Wallet demo"
+            : asset === "WLD"
+              ? "Guest WLD demo"
+              : "Guest demo"}
         </p>
       </div>
 
       <DemoBanner />
+
+      {asset === "WLD" ? <WldHint /> : null}
 
       <PlinkoBoard apiRef={boardRef} onReady={onBoardReady} />
 
@@ -280,9 +291,11 @@ export default function Home() {
         <p className="text-center text-sm text-[var(--accent)]">{lastResult}</p>
       ) : (
         <p className="text-center text-xs text-[var(--muted)]">
-          {boardReady
-            ? "Tap BUY BALLS to drop — demo chips only."
-            : "Loading board…"}
+          {!boardReady
+            ? "Loading board…"
+            : asset === "WLD"
+              ? "Tap BUY BALLS — WLD chips are demo; World connect in v1.1."
+              : "Tap BUY BALLS to drop — demo chips only."}
         </p>
       )}
 

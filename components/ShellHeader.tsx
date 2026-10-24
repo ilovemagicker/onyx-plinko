@@ -38,6 +38,13 @@ export function ShellHeader({ balance, asset, address = null }: ShellHeaderProps
 
   const label = connected && address ? truncateAddress(address) : "Connect";
 
+  const connectTitle =
+    connected && address
+      ? `${address} — click to disconnect (demo identity for WLD + SOL)`
+      : asset === "WLD"
+        ? "Connect Phantom for demo identity (WLD + SOL). World App connect in v1.1"
+        : "Connect Phantom (demo identity for WLD + SOL)";
+
   return (
     <header className="flex items-start justify-between gap-3">
       <div>
@@ -57,11 +64,7 @@ export function ShellHeader({ balance, asset, address = null }: ShellHeaderProps
           type="button"
           onClick={onClick}
           disabled={disconnecting}
-          title={
-            connected && address
-              ? `${address} — click to disconnect`
-              : "Connect Phantom (demo identity only)"
-          }
+          title={connectTitle}
           className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-medium text-[var(--foreground)] hover:border-[var(--accent)] disabled:opacity-50"
         >
           {label}
