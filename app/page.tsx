@@ -12,15 +12,9 @@ import type { Asset } from "@/lib/assets";
 import { DEFAULT_BALL_COST } from "@/lib/ball-cost";
 import { applyDrop, creditGuestStart } from "@/lib/ledger";
 import { loadBalance, saveBalance } from "@/lib/ledger-storage";
-import { DEFAULT_MULTIPLIERS } from "@/lib/multipliers";
 
-const AUTO_COUNT = 5;
-
-/** Task 8 will replace stub BUY with board.dropBall(). */
-function pickStubMultiplier(): number {
-  const i = Math.floor(Math.random() * DEFAULT_MULTIPLIERS.length);
-  return DEFAULT_MULTIPLIERS[i] ?? 1;
-}
+/** Sequential AUTO drops per run (plan: ~10). */
+const AUTO_COUNT = 10;
 
 const PlinkoBoard = dynamic(() => import("@/components/PlinkoBoard"), {
   ssr: false,
@@ -39,75 +33,233 @@ export default function Home() {
   );
 
   const boardRef = useRef<PlinkoBoardHandle | null>(null);
+  const balanceRef = useRef(creditGuestStart());
+  const addressRef = useRef<string | null>(null);
+  const assetRef = useRef<Asset>("SOL");
+  const ballCostRef = useRef(DEFAULT_BALL_COST);
+  const stopAutoRef = useRef(false);
+  const inFlightRef = useRef(false);
 
   const [asset, setAsset] = useState<Asset>("SOL");
   const [balance, setBalance] = useState(() => creditGuestStart());
   const [ballCost, setBallCost] = useState(DEFAULT_BALL_COST);
   const [speed, setSpeed] = useState(1);
   const [hydrated, setHydrated] = useState(false);
+  const [boardReady, setBoardReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
 
-  // On connect / disconnect / asset change: reload demo balance for identity.
   useEffect(() => {
+    balanceRef.current = balance;
+  }, [balance]);
+  useEffect(() => {
+    addressRef.current = address;
+  }, [address]);
+  useEffect(() => {
+    assetRef.current = asset;
+  }, [asset]);
+  useEffect(() => {
+    ballCostRef.current = ballCost;
+  }, [ballCost]);
+
+  // Reload demo balance when identity changes — wait until idle so mid-drop
+  // settlement (bound to start-of-drop address) is not clobbered.
+  useEffect(() => {
+    if (busy || autoRunning) return;
     const next = loadBalance(address, asset, creditGuestStart());
+    balanceRef.current = next;
     setBalance(next);
     setHydrated(true);
+  }, [address, asset, busy, autoRunning]);
+
+  // Spec: wallet switch / disconnect → stop AUTO; in-flight ball still finishes.
+  // Harmless while idle — onAuto resets this to false at start.
+  useEffect(() => {
+    stopAutoRef.current = true;
   }, [address, asset]);
 
-  // SPEED → animation only (Task 7); Task 8 keeps this.
   useEffect(() => {
     boardRef.current?.setSpeed(speed);
   }, [speed]);
 
-  const onBuy = useCallback(() => {
-    // Stub ledger path — real dropBall wiring is Task 8.
-    setBalance((prev) => {
-      const multiplier = pickStubMultiplier();
-      const result = applyDrop(prev, ballCost, multiplier);
-      if (!result.ok) {
-        setLastResult("Insufficient balance");
-        return prev;
-      }
-      saveBalance(address, asset, result.balance);
-      setLastResult(`Landed ${multiplier}x → bal ${result.balance}`);
-      return result.balance;
-    });
-  }, [address, asset, ballCost]);
+  const onBoardReady = useCallback(() => {
+    setBoardReady(true);
+    boardRef.current?.setSpeed(speed);
+  }, [speed]);
 
-  const onAuto = useCallback(() => {
-    setBalance((prev) => {
-      let current = prev;
-      let landed = 0;
-      let lastMult = 1;
-      for (let i = 0; i < AUTO_COUNT; i++) {
-        const multiplier = pickStubMultiplier();
-        const result = applyDrop(current, ballCost, multiplier);
-        if (!result.ok) {
-          setLastResult(
-            landed === 0
-              ? "Insufficient balance"
-              : `AUTO stopped after ${landed}; last ${lastMult}x`,
-          );
-          if (landed > 0) saveBalance(address, asset, current);
-          return current;
-        }
-        current = result.balance;
-        lastMult = multiplier;
-        landed += 1;
+  /**
+   * One ball: check balance → drop → applyDrop → save.
+   * Settlement address/asset/cost are snapshotted at start (spec: bind to
+   * identity at drop start even if wallet switches mid-animation).
+   */
+  const runOneDrop = useCallback(async (): Promise<
+    | { ok: true; multiplier: number; balance: number }
+    | {
+        ok: false;
+        reason: "insufficient" | "no-board" | "error";
+        message?: string;
       }
-      saveBalance(address, asset, current);
-      setLastResult(`AUTO ×${landed}; last ${lastMult}x → bal ${current}`);
-      return current;
-    });
-  }, [address, asset, ballCost]);
+  > => {
+    const board = boardRef.current;
+    if (!board) {
+      return { ok: false, reason: "no-board", message: "Board not ready" };
+    }
 
-  const onAssetChange = useCallback((next: Asset) => {
-    setAsset(next);
-    setLastResult(null);
+    const cost = ballCostRef.current;
+    const settleAddress = addressRef.current;
+    const settleAsset = assetRef.current;
+    const prev = balanceRef.current;
+    if (prev < cost) {
+      return { ok: false, reason: "insufficient" };
+    }
+
+    let multiplier: number;
+    try {
+      const landed = await board.dropBall();
+      multiplier = landed.multiplier;
+    } catch (err) {
+      console.error("dropBall failed", err);
+      return {
+        ok: false,
+        reason: "error",
+        message: err instanceof Error ? err.message : "Drop failed",
+      };
+    }
+
+    const result = applyDrop(prev, cost, multiplier);
+    if (!result.ok) {
+      return { ok: false, reason: "insufficient" };
+    }
+
+    balanceRef.current = result.balance;
+    setBalance(result.balance);
+    saveBalance(settleAddress, settleAsset, result.balance);
+    return { ok: true, multiplier, balance: result.balance };
   }, []);
 
+  const onBuy = useCallback(async () => {
+    if (inFlightRef.current) return;
+    if (!boardRef.current) {
+      setLastResult("Board not ready");
+      return;
+    }
+    if (balanceRef.current < ballCostRef.current) {
+      setLastResult("Insufficient balance");
+      return;
+    }
+
+    inFlightRef.current = true;
+    setBusy(true);
+    setLastResult(null);
+    try {
+      const outcome = await runOneDrop();
+      if (!outcome.ok) {
+        setLastResult(
+          outcome.reason === "insufficient"
+            ? "Insufficient balance"
+            : (outcome.message ?? "Drop failed"),
+        );
+        return;
+      }
+      setLastResult(`Landed ${outcome.multiplier}x → bal ${outcome.balance}`);
+    } finally {
+      inFlightRef.current = false;
+      setBusy(false);
+    }
+  }, [runOneDrop]);
+
+  const onStopAuto = useCallback(() => {
+    stopAutoRef.current = true;
+  }, []);
+
+  const onAuto = useCallback(async () => {
+    if (inFlightRef.current) return;
+    if (!boardRef.current) {
+      setLastResult("Board not ready");
+      return;
+    }
+    if (balanceRef.current < ballCostRef.current) {
+      setLastResult("Insufficient balance");
+      return;
+    }
+
+    stopAutoRef.current = false;
+    inFlightRef.current = true;
+    setBusy(true);
+    setAutoRunning(true);
+    setLastResult(`AUTO ×${AUTO_COUNT}…`);
+
+    let landed = 0;
+    let lastMult = 1;
+    let stoppedEarly = false;
+
+    try {
+      for (let i = 0; i < AUTO_COUNT; i++) {
+        if (stopAutoRef.current) {
+          stoppedEarly = true;
+          break;
+        }
+        if (balanceRef.current < ballCostRef.current) {
+          stoppedEarly = true;
+          break;
+        }
+
+        const outcome = await runOneDrop();
+        if (!outcome.ok) {
+          stoppedEarly = true;
+          if (landed === 0) {
+            setLastResult(
+              outcome.reason === "insufficient"
+                ? "Insufficient balance"
+                : (outcome.message ?? "AUTO failed"),
+            );
+          } else {
+            setLastResult(
+              `AUTO stopped after ${landed}; last ${lastMult}x → bal ${balanceRef.current}`,
+            );
+          }
+          return;
+        }
+        landed += 1;
+        lastMult = outcome.multiplier;
+        setLastResult(
+          `AUTO ${landed}/${AUTO_COUNT}; last ${lastMult}x → bal ${outcome.balance}`,
+        );
+      }
+
+      if (landed === 0) {
+        setLastResult(
+          stopAutoRef.current ? "AUTO cancelled" : "Insufficient balance",
+        );
+      } else if (stoppedEarly || stopAutoRef.current) {
+        setLastResult(
+          `AUTO stopped after ${landed}; last ${lastMult}x → bal ${balanceRef.current}`,
+        );
+      } else {
+        setLastResult(
+          `AUTO ×${landed}; last ${lastMult}x → bal ${balanceRef.current}`,
+        );
+      }
+    } finally {
+      stopAutoRef.current = false;
+      inFlightRef.current = false;
+      setBusy(false);
+      setAutoRunning(false);
+    }
+  }, [runOneDrop]);
+
+  const onAssetChange = useCallback(
+    (next: Asset) => {
+      if (inFlightRef.current || autoRunning) return;
+      setAsset(next);
+      setLastResult(null);
+    },
+    [autoRunning],
+  );
+
   const insufficient = balance < ballCost;
-  const disabled = !hydrated || insufficient;
+  const disabled = !hydrated || !boardReady || insufficient;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-4 px-4 py-6">
@@ -122,24 +274,33 @@ export default function Home() {
 
       <DemoBanner />
 
-      <PlinkoBoard apiRef={boardRef} />
+      <PlinkoBoard apiRef={boardRef} onReady={onBoardReady} />
 
       {lastResult ? (
         <p className="text-center text-sm text-[var(--accent)]">{lastResult}</p>
       ) : (
         <p className="text-center text-xs text-[var(--muted)]">
-          Board ready — BUY still uses stub multipliers until Task 8.
+          {boardReady
+            ? "Tap BUY BALLS to drop — demo chips only."
+            : "Loading board…"}
         </p>
       )}
 
       <Controls
         ballCost={ballCost}
         onBallCost={setBallCost}
-        onBuy={onBuy}
-        onAuto={onAuto}
+        onBuy={() => {
+          void onBuy();
+        }}
+        onAuto={() => {
+          void onAuto();
+        }}
+        onStopAuto={onStopAuto}
         speed={speed}
         onSpeed={setSpeed}
         disabled={disabled}
+        busy={busy}
+        autoRunning={autoRunning}
       />
 
       {insufficient && hydrated ? (
