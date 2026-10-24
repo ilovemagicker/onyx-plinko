@@ -39,10 +39,10 @@ export function Controls({
   const costDisabled = busy || autoRunning;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs uppercase tracking-wider text-[var(--muted)]">
-          Ball cost
+        <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+          Cost
         </span>
         {BALL_COSTS.map((c) => {
           const active = c === ballCost;
@@ -55,8 +55,8 @@ export function Controls({
               onClick={() => onBallCost(c)}
               className={
                 active
-                  ? "rounded-full bg-[var(--surface)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)] ring-1 ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                  : "rounded-full border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-50"
+                  ? "min-w-9 rounded-full bg-[var(--accent)]/15 px-3 py-1.5 text-xs font-semibold text-[var(--accent)] ring-1 ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                  : "min-w-9 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:border-[var(--accent)]/40 hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
               }
             >
               {c}
@@ -66,7 +66,7 @@ export function Controls({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs uppercase tracking-wider text-[var(--muted)]">
+        <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
           Speed
         </span>
         {SPEEDS.map((s) => {
@@ -79,8 +79,8 @@ export function Controls({
               onClick={() => onSpeed(s)}
               className={
                 active
-                  ? "rounded-full bg-[var(--surface)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)] ring-1 ring-[var(--accent)]"
-                  : "rounded-full border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)]"
+                  ? "min-w-9 rounded-full bg-[var(--accent)]/15 px-3 py-1.5 text-xs font-semibold text-[var(--accent)] ring-1 ring-[var(--accent)]"
+                  : "min-w-9 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:border-[var(--accent)]/40 hover:text-[var(--foreground)]"
               }
             >
               {s}x
@@ -89,12 +89,12 @@ export function Controls({
         })}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2.5 pt-0.5">
         <button
           type="button"
           disabled={buyDisabled}
           onClick={onBuy}
-          className="rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--background)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl bg-[var(--accent)] px-4 py-3.5 text-sm font-bold tracking-wide text-[var(--background)] shadow-[0_0_24px_-6px_var(--glow)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
           {busy && !autoRunning ? "DROPPING…" : "BUY BALLS"}
         </button>
@@ -105,8 +105,8 @@ export function Controls({
           aria-pressed={autoRunning}
           className={
             autoRunning
-              ? "rounded-xl border border-red-500/60 bg-red-500/15 px-4 py-3 text-sm font-semibold text-red-300"
-              : "rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+              ? "rounded-xl border border-red-500/70 bg-red-500/20 px-4 py-3.5 text-sm font-bold tracking-wide text-red-200"
+              : "rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3.5 text-sm font-bold tracking-wide text-[var(--foreground)] transition hover:border-[var(--accent)]/50 disabled:cursor-not-allowed disabled:opacity-50"
           }
         >
           {autoRunning ? "STOP" : "AUTO"}

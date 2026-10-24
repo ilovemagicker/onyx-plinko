@@ -76,13 +76,17 @@ export default function PlinkoBoard({
     <div
       className={
         className ??
-        "relative w-full overflow-hidden rounded-2xl border border-[var(--border)]"
+        "relative w-full overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_0_0_1px_rgba(200,245,66,0.08),0_0_40px_-8px_rgba(200,245,66,0.25),0_0_80px_-20px_rgba(255,183,197,0.2)]"
       }
     >
-      {/* Japanese art placeholder behind canvas */}
+      {/* Soft sakura / ink wash behind canvas */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_10%,rgba(255,183,197,0.18),transparent_50%),radial-gradient(ellipse_at_90%_30%,rgba(255,143,171,0.12),transparent_45%),linear-gradient(180deg,#1a1020_0%,#0b0b0f_70%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_8%,rgba(255,183,197,0.22),transparent_48%),radial-gradient(ellipse_at_88%_28%,rgba(255,143,171,0.14),transparent_42%),radial-gradient(ellipse_at_50%_70%,rgba(200,245,66,0.06),transparent_55%),linear-gradient(180deg,#1c1224_0%,#0c0c12_72%)]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/40 to-transparent"
       />
       <div
         id="plinko-root"

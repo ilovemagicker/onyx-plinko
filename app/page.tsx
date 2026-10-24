@@ -20,7 +20,7 @@ const AUTO_COUNT = 10;
 const PlinkoBoard = dynamic(() => import("@/components/PlinkoBoard"), {
   ssr: false,
   loading: () => (
-    <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--muted)]">
+    <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--muted)] shadow-[0_0_40px_-12px_rgba(200,245,66,0.2)]">
       Loading board…
     </div>
   ),
@@ -265,7 +265,7 @@ export default function Home() {
   const disabled = !hydrated || !boardReady || insufficient;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-4 px-4 py-6">
+    <main className="relative mx-auto flex min-h-screen w-full max-w-md flex-col gap-4 px-4 py-6">
       <ShellHeader balance={balance} asset={asset} address={address} />
 
       <div className="flex items-center justify-between gap-2">
@@ -288,7 +288,9 @@ export default function Home() {
       <PlinkoBoard apiRef={boardRef} onReady={onBoardReady} />
 
       {lastResult ? (
-        <p className="text-center text-sm text-[var(--accent)]">{lastResult}</p>
+        <p className="rounded-lg border border-[var(--accent)]/20 bg-[var(--accent)]/5 px-3 py-2 text-center text-sm font-medium text-[var(--accent)]">
+          {lastResult}
+        </p>
       ) : (
         <p className="text-center text-xs text-[var(--muted)]">
           {!boardReady
@@ -323,7 +325,7 @@ export default function Home() {
       ) : null}
 
       <footer className="mt-auto border-t border-[var(--border)] pt-4 text-center text-xs text-[var(--muted)]">
-        <p className="font-medium text-[var(--accent)]">Demo — not real funds</p>
+        <p className="font-semibold text-[var(--accent)]">Demo — not real funds</p>
         <p className="mt-1">Onyx Labs · plinko.onyxlab.dev</p>
         <p className="mt-1">No wallet signing or on-chain transfers in v1.</p>
       </footer>

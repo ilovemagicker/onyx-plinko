@@ -3,10 +3,18 @@
  * Phaser is imported dynamically so Node/SSR never evaluates the browser bundle.
  */
 import { DEFAULT_MULTIPLIERS } from "@/lib/multipliers";
+import {
+  triangleGuideEndpoints,
+  trianglePegCounts,
+  trianglePegPositions,
+} from "@/lib/peg-layout";
 import type { DropResult, PlinkoGameApi } from "@/game/types";
 
 export const BOARD_WIDTH = 360;
 export const BOARD_HEIGHT = 520;
+
+/** Classic Galton start: row 0 has 3 pegs; grows to binCount-1. */
+export const TRIANGLE_START_PEGS = 3;
 
 type MatterBody = {
   label?: string;
@@ -32,6 +40,15 @@ function hashToUnit(seed: string): number {
 
 function formatMult(m: number): string {
   return `${m}x`;
+}
+
+function binColor(mult: number): number {
+  if (mult >= 50) return 0xb91c1c;
+  if (mult >= 15) return 0xef4444;
+  if (mult >= 6) return 0xf97316;
+  if (mult >= 3) return 0xfbbf24;
+  if (mult >= 1) return 0x2dd4bf;
+  return 0x52525b;
 }
 
 export type CreatePlinkoGameOptions = {
@@ -65,7 +82,9 @@ export async function createPlinkoGame(
   /** Serialize drops so AUTO can await one ball at a time. */
   let dropChain: Promise<unknown> = Promise.resolve();
 
-  // Hoisted scene methods bound after class init — typed loosely for Phaser internals.
+  // Peg spacing for spawn jitter (set in createPegs).
+  let pegSpacing = width / (binCount + 1);
+
   type SceneApi = {
     applySpeed: (speed: number) => void;
     spawnBall: (
@@ -102,11 +121,14 @@ export async function createPlinkoGame(
       this.createPegs();
       this.createBins();
 
-      matter.world.on("collisionstart", (event: { pairs: Array<{ bodyA: MatterBody; bodyB: MatterBody }> }) => {
-        for (const pair of event.pairs) {
-          this.handlePair(pair.bodyA, pair.bodyB);
-        }
-      });
+      matter.world.on(
+        "collisionstart",
+        (event: { pairs: Array<{ bodyA: MatterBody; bodyB: MatterBody }> }) => {
+          for (const pair of event.pairs) {
+            this.handlePair(pair.bodyA, pair.bodyB);
+          }
+        },
+      );
 
       sceneApi = {
         applySpeed: (s) => this.applySpeed(s),
@@ -124,14 +146,25 @@ export async function createPlinkoGame(
 
     private drawJapaneseBackdrop() {
       const g = this.add.graphics();
-      g.fillGradientStyle(0x2a1520, 0x2a1520, 0x1a1028, 0x14101c, 1);
+      // Soft plum → ink gradient
+      g.fillGradientStyle(0x2a1528, 0x22142a, 0x14101c, 0x0c0a12, 1);
       g.fillRect(0, 0, width, height);
-      g.fillStyle(0xffb7c5, 0.08);
-      g.fillCircle(width * 0.2, height * 0.15, 80);
-      g.fillStyle(0xff8fab, 0.06);
-      g.fillCircle(width * 0.85, height * 0.25, 60);
-      g.fillStyle(0xc8f542, 0.04);
-      g.fillCircle(width * 0.5, height * 0.55, 100);
+
+      // Sakura bloom washes
+      g.fillStyle(0xffb7c5, 0.14);
+      g.fillCircle(width * 0.18, height * 0.12, 90);
+      g.fillStyle(0xff8fab, 0.1);
+      g.fillCircle(width * 0.88, height * 0.22, 70);
+      g.fillStyle(0xc8f542, 0.05);
+      g.fillCircle(width * 0.5, height * 0.48, 110);
+
+      // Soft petal dots
+      g.fillStyle(0xffc9d6, 0.12);
+      for (let i = 0; i < 18; i++) {
+        const px = ((i * 97) % width) + (i % 3) * 7;
+        const py = 30 + ((i * 53) % (height * 0.55));
+        g.fillCircle(px, py, 2 + (i % 3));
+      }
       g.setDepth(-10);
     }
 
@@ -147,6 +180,7 @@ export async function createPlinkoGame(
         },
       };
       const thickness = 24;
+      // Safety outer walls (far from triangle gutters)
       this.matter.add.rectangle(-thickness / 2, height / 2, thickness, height, wallOpts);
       this.matter.add.rectangle(width + thickness / 2, height / 2, thickness, height, wallOpts);
       this.matter.add.rectangle(width / 2, height + 10, width + 40, 24, {
@@ -155,39 +189,130 @@ export async function createPlinkoGame(
       });
     }
 
-    private createPegs() {
-      const rows = 12;
-      const topY = 56;
-      const bottomY = height - 140;
-      const rowGap = (bottomY - topY) / (rows - 1);
-      const pegRadius = 4.5;
+    private createSlantGuides(
+      left: [{ x: number; y: number }, { x: number; y: number }],
+      right: [{ x: number; y: number }, { x: number; y: number }],
+    ) {
+      const addSegment = (
+        a: { x: number; y: number },
+        b: { x: number; y: number },
+        label: string,
+      ) => {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx, dy);
+        const angle = Math.atan2(dy, dx);
+        const cx = (a.x + b.x) / 2;
+        const cy = (a.y + b.y) / 2;
+        this.matter.add.rectangle(cx, cy, len, 6, {
+          isStatic: true,
+          label,
+          angle,
+          friction: 0.08,
+          restitution: 0.4,
+          collisionFilter: {
+            category: this.pegCategory,
+            mask: this.ballCategory,
+          },
+        });
+        // Soft visual rail
+        const g = this.add.graphics();
+        g.lineStyle(2, 0xc8f542, 0.22);
+        g.lineBetween(a.x, a.y, b.x, b.y);
+        g.lineStyle(6, 0xffb7c5, 0.08);
+        g.lineBetween(a.x, a.y, b.x, b.y);
+        g.setDepth(-1);
+      };
 
-      for (let row = 0; row < rows; row++) {
-        const pegsInRow = row % 2 === 0 ? binCount - 1 : binCount;
-        const y = topY + row * rowGap;
-        const spacing = width / (pegsInRow + 1);
-        for (let i = 0; i < pegsInRow; i++) {
-          const x = spacing * (i + 1);
-          this.matter.add.circle(x, y, pegRadius, {
-            isStatic: true,
-            label: "peg",
-            friction: 0.05,
-            restitution: 0.55,
-            collisionFilter: {
-              category: this.pegCategory,
-              mask: this.ballCategory,
-            },
-          });
-          const dot = this.add.circle(x, y, pegRadius, 0xe8d5b7, 1);
-          dot.setStrokeStyle(1, 0xc4a574, 0.9);
-        }
+      addSegment(left[0], left[1], "guide-left");
+      addSegment(right[0], right[1], "guide-right");
+    }
+
+    private createPegs() {
+      const topY = 52;
+      const bottomY = height - 132;
+      const pegRadius = 4.2;
+      const marginX = 30;
+
+      const counts = trianglePegCounts(binCount, TRIANGLE_START_PEGS);
+      const points = trianglePegPositions({
+        binCount,
+        width,
+        topY,
+        bottomY,
+        marginX,
+        startPegs: TRIANGLE_START_PEGS,
+      });
+      const guides = triangleGuideEndpoints({
+        binCount,
+        width,
+        topY,
+        bottomY,
+        marginX,
+        startPegs: TRIANGLE_START_PEGS,
+        pad: 12,
+      });
+      pegSpacing = guides.spacing;
+
+      this.createSlantGuides(guides.left, guides.right);
+
+      // Faint pyramid fill behind pegs
+      const fill = this.add.graphics();
+      fill.fillStyle(0xc8f542, 0.03);
+      fill.fillTriangle(
+        guides.left[0].x,
+        guides.left[0].y,
+        guides.right[0].x,
+        guides.right[0].y,
+        width / 2,
+        bottomY + 40,
+      );
+      fill.fillStyle(0xffb7c5, 0.04);
+      fill.fillTriangle(
+        guides.left[1].x,
+        guides.left[1].y,
+        guides.right[1].x,
+        guides.right[1].y,
+        width / 2,
+        topY - 20,
+      );
+      fill.setDepth(-5);
+
+      for (const p of points) {
+        this.matter.add.circle(p.x, p.y, pegRadius, {
+          isStatic: true,
+          label: "peg",
+          friction: 0.05,
+          restitution: 0.55,
+          collisionFilter: {
+            category: this.pegCategory,
+            mask: this.ballCategory,
+          },
+        });
+        // Glow halo + peg body
+        const halo = this.add.circle(p.x, p.y, pegRadius + 3, 0xffb7c5, 0.18);
+        halo.setDepth(0);
+        const dot = this.add.circle(p.x, p.y, pegRadius, 0xf5e6c8, 1);
+        dot.setStrokeStyle(1.5, 0xe8c48a, 0.95);
+        dot.setDepth(1);
       }
+
+      // Document row shape for debugging overlays (invisible)
+      void counts;
     }
 
     private createBins() {
       const binTop = height - 100;
-      const binHeight = 70;
+      const binHeight = 72;
       const binW = width / binCount;
+
+      // Soft shelf under bins
+      const shelf = this.add.graphics();
+      shelf.fillStyle(0x0a0a0e, 0.55);
+      shelf.fillRoundedRect(4, binTop - 4, width - 8, binHeight + 10, 10);
+      shelf.lineStyle(1, 0xc8f542, 0.15);
+      shelf.strokeRoundedRect(4, binTop - 4, width - 8, binHeight + 10, 10);
+      shelf.setDepth(0);
 
       for (let i = 0; i < binCount; i++) {
         const cx = binW * i + binW / 2;
@@ -204,7 +329,6 @@ export async function createPlinkoGame(
               mask: this.ballCategory,
             },
           });
-          this.add.rectangle(binW * i, binTop + binHeight / 2, 2, binHeight, 0x3f3f46);
         }
 
         this.matter.add.rectangle(cx, binTop + binHeight / 2, binW - 2, binHeight - 4, {
@@ -217,24 +341,21 @@ export async function createPlinkoGame(
           },
         });
 
-        const color =
-          mult >= 15 ? 0xff6b6b : mult >= 3 ? 0xfbbf24 : mult >= 1 ? 0x34d399 : 0x71717a;
-        const rect = this.add.rectangle(
-          cx,
-          binTop + binHeight / 2,
-          binW - 2,
-          binHeight - 4,
-          color,
-          0.35,
-        );
-        rect.setStrokeStyle(1, color, 0.8);
+        const color = binColor(mult);
+        const chipW = Math.max(binW - 3, 10);
+        const chipH = binHeight - 10;
+        const rect = this.add.rectangle(cx, binTop + binHeight / 2, chipW, chipH, color, 0.42);
+        rect.setStrokeStyle(1.5, color, 0.95);
+        rect.setDepth(2);
         this.add
           .text(cx, binTop + binHeight / 2, formatMult(mult), {
-            fontSize: binCount > 12 ? "9px" : "11px",
-            color: "#f4f4f5",
+            fontSize: binCount > 12 ? "8px" : "11px",
+            color: "#fafafa",
+            fontStyle: "bold",
             fontFamily: "ui-sans-serif, system-ui, sans-serif",
           })
-          .setOrigin(0.5);
+          .setOrigin(0.5)
+          .setDepth(3);
       }
     }
 
@@ -257,11 +378,17 @@ export async function createPlinkoGame(
       onTimeout: (x: number, body: MatterBody) => void,
     ): MatterBody {
       const unit = seed ? hashToUnit(seed) : Math.random();
-      const startX = width / 2 + (unit - 0.5) * (width * 0.35);
-      const radius = 6;
+      // Spawn near pyramid apex with small jitter (not full board width)
+      const topSpread = Math.min(pegSpacing * 1.1, width * 0.12);
+      const startX = width / 2 + (unit - 0.5) * topSpread;
+      const radius = 6.5;
 
-      const visual = this.add.circle(startX, 28, radius, 0xc8f542, 1);
-      visual.setStrokeStyle(2, 0xffffff, 0.5);
+      // Outer glow
+      const glow = this.add.circle(startX, 26, radius + 5, 0xc8f542, 0.28);
+      glow.setDepth(4);
+      const visual = this.add.circle(startX, 26, radius, 0xd4ff6a, 1);
+      visual.setStrokeStyle(2, 0xffffff, 0.65);
+      visual.setDepth(5);
 
       this.matter.add.gameObject(visual, {
         shape: { type: "circle", radius },
@@ -278,13 +405,24 @@ export async function createPlinkoGame(
 
       const body = (visual as unknown as { body: MatterBody }).body;
 
+      // Keep glow glued via update — cheap follow using Matter body position
+      const follow = () => {
+        if (!body?.position || !glow.active) return;
+        glow.setPosition(body.position.x, body.position.y);
+      };
+      this.events.on("update", follow);
+      const cleanupGlow = () => {
+        this.events.off("update", follow);
+        if (glow.active) glow.destroy();
+      };
+      (body as MatterBody & { _cleanupGlow?: () => void })._cleanupGlow = cleanupGlow;
+
       const timeoutMs = Math.max(4000, 12000 / Math.max(speedScale, 0.5));
       const timeoutId = setTimeout(() => {
         const x = body?.position?.x ?? width / 2;
         onTimeout(x, body);
       }, timeoutMs);
 
-      // Store timeout on pending — caller creates pending entry first.
       const entry = pending.get(ballId);
       if (entry) entry.timeoutId = timeoutId;
 
@@ -293,6 +431,8 @@ export async function createPlinkoGame(
 
     removeBall(body: MatterBody) {
       try {
+        const withGlow = body as MatterBody & { _cleanupGlow?: () => void };
+        withGlow._cleanupGlow?.();
         if (body.gameObject) body.gameObject.destroy();
         else this.matter.world.remove(body as never);
       } catch {
@@ -358,7 +498,6 @@ export async function createPlinkoGame(
       }
       requestAnimationFrame(tick);
     };
-    // Scene create runs on first frame
     requestAnimationFrame(tick);
   });
 
@@ -371,7 +510,6 @@ export async function createPlinkoGame(
             return;
           }
           const ballId = nextBallId++;
-          // Register pending BEFORE spawn so a fast collision cannot miss resolve.
           pending.set(ballId, {
             resolve,
             reject,

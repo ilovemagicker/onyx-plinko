@@ -48,24 +48,28 @@ export function ShellHeader({ balance, asset, address = null }: ShellHeaderProps
   return (
     <header className="flex items-start justify-between gap-3">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+        <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-[var(--muted)]">
           Onyx Labs
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight">Plinko</h1>
+        <h1 className="bg-gradient-to-r from-[var(--foreground)] via-[var(--foreground)] to-[var(--accent)] bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
+          Plinko
+        </h1>
       </div>
 
       <div className="flex flex-col items-end gap-2">
-        <p className="text-sm tabular-nums text-[var(--foreground)]">
-          <span className="text-[var(--muted)]">Bal </span>
-          {formatBalance(balance)}{" "}
-          <span className="font-medium text-[var(--accent)]">{asset}</span>
-        </p>
+        <div className="rounded-full border border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1.5 shadow-[inset_0_0_0_1px_rgba(200,245,66,0.06)]">
+          <p className="text-sm tabular-nums text-[var(--foreground)]">
+            <span className="text-[var(--muted)]">Bal </span>
+            {formatBalance(balance)}{" "}
+            <span className="font-semibold text-[var(--accent)]">{asset}</span>
+          </p>
+        </div>
         <button
           type="button"
           onClick={onClick}
           disabled={disconnecting}
           title={connectTitle}
-          className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-medium text-[var(--foreground)] hover:border-[var(--accent)] disabled:opacity-50"
+          className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)]/60 hover:shadow-[0_0_16px_-4px_var(--glow)] disabled:opacity-50"
         >
           {label}
         </button>

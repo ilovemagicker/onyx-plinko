@@ -1,12 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b0b0f;
+  --background: #08080c;
   --foreground: #f4f4f5;
   --muted: #a1a1aa;
   --accent: #c8f542;
-  --surface: #14141a;
-  --border: #27272a;
+  --accent-dim: rgba(200, 245, 66, 0.14);
+  --surface: #12121a;
+  --surface-2: #1a1a24;
+  --border: #2a2a34;
+  --sakura: #ffb7c5;
+  --glow: rgba(200, 245, 66, 0.35);
 }
 
 html,
@@ -17,7 +21,13 @@ body {
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255, 183, 197, 0.16), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 90% 20%, rgba(200, 245, 66, 0.07), transparent 50%),
+    radial-gradient(ellipse 50% 35% at 10% 60%, rgba(255, 143, 171, 0.08), transparent 50%),
+    linear-gradient(180deg, #0c0c12 0%, #08080c 100%);
+  background-attachment: fixed;
   font-family:
     ui-sans-serif,
     system-ui,
@@ -31,6 +41,24 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Soft film grain (CSS-only noise via layered gradients) */
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 180px 180px;
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* Wallet modal sits above grain */
+.wallet-adapter-modal-wrapper {
+  z-index: 60 !important;
 }
