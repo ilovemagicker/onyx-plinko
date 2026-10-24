@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
     "@solana/wallet-adapter-wallets",
     "@solana/wallet-adapter-phantom",
   ],
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve = config.resolve || {};
     config.resolve.fallback = {
       ...(config.resolve.fallback || {}),
@@ -16,6 +16,14 @@ const nextConfig: NextConfig = {
       net: false,
       tls: false,
     };
+    // Phaser touches `window` at evaluation — keep it out of the server bundle.
+    if (isServer) {
+      const prior = config.externals;
+      config.externals = [
+        ...(Array.isArray(prior) ? prior : prior ? [prior] : []),
+        "phaser",
+      ];
+    }
     return config;
   },
 };

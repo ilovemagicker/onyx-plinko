@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AssetToggle } from "@/components/AssetToggle";
 import { Controls } from "@/components/Controls";
 import { DemoBanner } from "@/components/DemoBanner";
 import { ShellHeader } from "@/components/ShellHeader";
+import type { PlinkoBoardHandle } from "@/game/types";
 import type { Asset } from "@/lib/assets";
 import { DEFAULT_BALL_COST } from "@/lib/ball-cost";
 import { applyDrop, creditGuestStart } from "@/lib/ledger";
@@ -14,10 +16,20 @@ import { DEFAULT_MULTIPLIERS } from "@/lib/multipliers";
 
 const AUTO_COUNT = 5;
 
+/** Task 8 will replace stub BUY with board.dropBall(). */
 function pickStubMultiplier(): number {
   const i = Math.floor(Math.random() * DEFAULT_MULTIPLIERS.length);
   return DEFAULT_MULTIPLIERS[i] ?? 1;
 }
+
+const PlinkoBoard = dynamic(() => import("@/components/PlinkoBoard"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--muted)]">
+      Loading board…
+    </div>
+  ),
+});
 
 export default function Home() {
   const { publicKey } = useWallet();
@@ -25,6 +37,8 @@ export default function Home() {
     () => (publicKey ? publicKey.toBase58() : null),
     [publicKey],
   );
+
+  const boardRef = useRef<PlinkoBoardHandle | null>(null);
 
   const [asset, setAsset] = useState<Asset>("SOL");
   const [balance, setBalance] = useState(() => creditGuestStart());
@@ -40,7 +54,13 @@ export default function Home() {
     setHydrated(true);
   }, [address, asset]);
 
+  // SPEED → animation only (Task 7); Task 8 keeps this.
+  useEffect(() => {
+    boardRef.current?.setSpeed(speed);
+  }, [speed]);
+
   const onBuy = useCallback(() => {
+    // Stub ledger path — real dropBall wiring is Task 8.
     setBalance((prev) => {
       const multiplier = pickStubMultiplier();
       const result = applyDrop(prev, ballCost, multiplier);
@@ -102,17 +122,15 @@ export default function Home() {
 
       <DemoBanner />
 
-      <section className="flex min-h-[220px] flex-1 flex-col items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
-        <p className="text-sm text-[var(--muted)]">
-          Board placeholder — Phaser arrives in Task 7.
+      <PlinkoBoard apiRef={boardRef} />
+
+      {lastResult ? (
+        <p className="text-center text-sm text-[var(--accent)]">{lastResult}</p>
+      ) : (
+        <p className="text-center text-xs text-[var(--muted)]">
+          Board ready — BUY still uses stub multipliers until Task 8.
         </p>
-        <p className="mt-2 text-xs text-[var(--muted)]">
-          BUY uses a random stub multiplier for now.
-        </p>
-        {lastResult ? (
-          <p className="mt-4 text-sm text-[var(--accent)]">{lastResult}</p>
-        ) : null}
-      </section>
+      )}
 
       <Controls
         ballCost={ballCost}
