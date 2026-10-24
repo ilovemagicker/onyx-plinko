@@ -6,13 +6,29 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { AssetToggle } from "@/components/AssetToggle";
 import { Controls } from "@/components/Controls";
 import { DemoBanner } from "@/components/DemoBanner";
+import { JuiceOverlay } from "@/components/JuiceOverlay";
 import { ShellHeader } from "@/components/ShellHeader";
 import { WldHint } from "@/components/WldHint";
 import type { PlinkoBoardHandle } from "@/game/types";
 import type { Asset } from "@/lib/assets";
 import { DEFAULT_BALL_COST } from "@/lib/ball-cost";
+import {
+  isStreakMilestone,
+  juiceLabel,
+  juiceTierForMultiplier,
+  nextStreak,
+  type JuiceTier,
+} from "@/lib/juice";
 import { applyDrop, creditGuestStart } from "@/lib/ledger";
 import { loadBalance, saveBalance } from "@/lib/ledger-storage";
+import {
+  DEFAULT_RISK,
+  getRiskMultipliers,
+  getRiskWeights,
+  loadStoredRisk,
+  saveStoredRisk,
+  type RiskMode,
+} from "@/lib/risk-modes";
 
 /** Sequential AUTO drops per run (plan: ~10). */
 const AUTO_COUNT = 10;
@@ -40,6 +56,7 @@ export default function Home() {
   const ballCostRef = useRef(DEFAULT_BALL_COST);
   const stopAutoRef = useRef(false);
   const inFlightRef = useRef(false);
+  const streakRef = useRef(0);
 
   const [asset, setAsset] = useState<Asset>("SOL");
   const [balance, setBalance] = useState(() => creditGuestStart());
@@ -50,6 +67,18 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [risk, setRisk] = useState<RiskMode>(DEFAULT_RISK);
+  const [streak, setStreak] = useState(0);
+  const [juiceTier, setJuiceTier] = useState<JuiceTier>("none");
+  const [juiceText, setJuiceText] = useState<string | null>(null);
+  const [pulseKey, setPulseKey] = useState(0);
+
+  const multipliers = useMemo(() => getRiskMultipliers(risk), [risk]);
+  const binWeights = useMemo(() => getRiskWeights(risk), [risk]);
+
+  useEffect(() => {
+    setRisk(loadStoredRisk(DEFAULT_RISK));
+  }, []);
 
   useEffect(() => {
     balanceRef.current = balance;
@@ -63,6 +92,9 @@ export default function Home() {
   useEffect(() => {
     ballCostRef.current = ballCost;
   }, [ballCost]);
+  useEffect(() => {
+    streakRef.current = streak;
+  }, [streak]);
 
   // Same connected address (or guest) keys BOTH WLD and SOL buckets —
   // one identity, two balances. Reload when identity changes; wait until
@@ -90,6 +122,29 @@ export default function Home() {
     setBoardReady(true);
     boardRef.current?.setSpeed(speed);
   }, [speed]);
+
+  const triggerJuice = useCallback((multiplier: number) => {
+    const next = nextStreak(streakRef.current, multiplier);
+    streakRef.current = next;
+    setStreak(next);
+
+    const tier = juiceTierForMultiplier(multiplier);
+    let label = juiceLabel(tier);
+    if (isStreakMilestone(next) && (!label || tier === "nice")) {
+      label = next >= 10 ? `連擊 ×${next}!` : label ?? `連擊 ×${next}`;
+    }
+    // Always show toast for big/jackpot; nice only if ≥3x
+    setJuiceTier(tier);
+    setJuiceText(label);
+    if (tier !== "none" || isStreakMilestone(next)) {
+      setPulseKey((k) => k + 1);
+    }
+    // Clear toast after a beat
+    window.setTimeout(() => {
+      setJuiceTier("none");
+      setJuiceText(null);
+    }, tier === "jackpot" ? 1600 : tier === "big" ? 1200 : 800);
+  }, []);
 
   /**
    * One ball: check balance → drop → applyDrop → save.
@@ -138,8 +193,9 @@ export default function Home() {
     balanceRef.current = result.balance;
     setBalance(result.balance);
     saveBalance(settleAddress, settleAsset, result.balance);
+    triggerJuice(multiplier);
     return { ok: true, multiplier, balance: result.balance };
-  }, []);
+  }, [triggerJuice]);
 
   const onBuy = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -261,11 +317,35 @@ export default function Home() {
     [autoRunning],
   );
 
+  const onRiskChange = useCallback(
+    (next: RiskMode) => {
+      if (inFlightRef.current || autoRunning) return;
+      if (next === risk) return;
+      // Stop AUTO (already blocked above) and remount board via key.
+      stopAutoRef.current = true;
+      setBoardReady(false);
+      setRisk(next);
+      saveStoredRisk(next);
+      setLastResult(null);
+      // Reset streak when risk table changes — different game feel.
+      streakRef.current = 0;
+      setStreak(0);
+    },
+    [autoRunning, risk],
+  );
+
   const insufficient = balance < ballCost;
   const disabled = !hydrated || !boardReady || insufficient;
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-md flex-col gap-4 px-4 py-6">
+      <JuiceOverlay
+        tier={juiceTier}
+        label={juiceText}
+        streak={streak}
+        pulseKey={pulseKey}
+      />
+
       <ShellHeader balance={balance} asset={asset} address={address} />
 
       <div className="flex items-center justify-between gap-2">
@@ -285,7 +365,30 @@ export default function Home() {
 
       {asset === "WLD" ? <WldHint /> : null}
 
-      <PlinkoBoard apiRef={boardRef} onReady={onBoardReady} />
+      <div className="relative">
+        <PlinkoBoard
+          key={risk}
+          apiRef={boardRef}
+          onReady={onBoardReady}
+          multipliers={multipliers}
+          binWeights={binWeights}
+        />
+        {streak >= 2 ? (
+          <div className="pointer-events-none absolute right-3 top-3 z-20">
+            <p
+              className={
+                streak >= 10
+                  ? "rounded-full border border-yellow-300/60 bg-yellow-400/15 px-3 py-1 text-xs font-bold tracking-wide text-yellow-100 shadow-[0_0_16px_rgba(250,204,21,0.35)]"
+                  : streak >= 5
+                    ? "rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-bold tracking-wide text-amber-100"
+                    : "rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-3 py-1 text-xs font-semibold tracking-wide text-[var(--accent)]"
+              }
+            >
+              連擊 ×{streak}
+            </p>
+          </div>
+        ) : null}
+      </div>
 
       {lastResult ? (
         <p className="rounded-lg border border-[var(--accent)]/20 bg-[var(--accent)]/5 px-3 py-2 text-center text-sm font-medium text-[var(--accent)]">
@@ -316,6 +419,8 @@ export default function Home() {
         disabled={disabled}
         busy={busy}
         autoRunning={autoRunning}
+        risk={risk}
+        onRisk={onRiskChange}
       />
 
       {insufficient && hydrated ? (

@@ -5,11 +5,8 @@
  * weights so jackpot edges stay reachable and RTP stays a mild house edge.
  *
  * Shape: softened Galton — weight ∝ C(n,k)^power with power < 1 (not raw 1/2^n).
- * power closer to 1 → rarer edges. With 25x edges, power≈0.7 keeps each edge
- * around ~0.02% and RTP in ~0.94–0.99.
+ * DEMO_* mirrors High risk (see lib/risk-modes.ts).
  */
-
-import { DEFAULT_MULTIPLIERS } from "@/lib/multipliers";
 
 /** Binomial coefficient C(n, k). */
 export function binomial(n: number, k: number): number {
@@ -50,15 +47,14 @@ export function normalizeWeights(weights: number[]): number[] {
 }
 
 /**
- * Softening power for the published demo table.
+ * Softening power for the published High-risk demo table.
  * power=1 → classic Galton; lower → fatter tails / more reachable edges.
- * Raised toward 1 so edge bins stay rare (~0.02% each).
  */
 export const DEMO_BIN_ODDS_POWER = 0.7;
 
-/** Length-17 published probabilities (sum ≈ 1), symmetric, center-peaked. */
+/** Length-17 published probabilities (High risk), sum ≈ 1. */
 export const DEMO_BIN_WEIGHTS: number[] = softenedBinomialWeights(
-  DEFAULT_MULTIPLIERS.length,
+  17,
   DEMO_BIN_ODDS_POWER,
 );
 

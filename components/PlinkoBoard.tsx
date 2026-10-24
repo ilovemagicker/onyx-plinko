@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { PlinkoBoardHandle, PlinkoGameApi } from "@/game/types";
+import { DEFAULT_MULTIPLIERS } from "@/lib/multipliers";
+import { DEMO_BIN_WEIGHTS } from "@/lib/bin-odds";
 
 export type { PlinkoBoardHandle };
 
@@ -14,16 +16,23 @@ export type PlinkoBoardProps = {
   apiRef?: MutableRefObject<PlinkoBoardHandle | null>;
   /** Called once the Phaser scene is ready for dropBall. */
   onReady?: () => void;
+  /** Payout table for bin labels + settlement (risk mode). */
+  multipliers?: number[];
+  /** Settlement weights matching multipliers length. */
+  binWeights?: number[];
 };
 
 /**
  * Client-only Phaser Plinko board.
  * Parent should load this via next/dynamic `{ ssr: false }`.
+ * Remount (change `key`) when risk multipliers change.
  */
 export default function PlinkoBoard({
   className,
   apiRef,
   onReady,
+  multipliers = DEFAULT_MULTIPLIERS,
+  binWeights = DEMO_BIN_WEIGHTS,
 }: PlinkoBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const localApiRef = useRef<PlinkoGameApi | null>(null);
@@ -40,7 +49,10 @@ export default function PlinkoBoard({
       try {
         const { createPlinkoGame } = await import("@/game/createPlinkoScene");
         if (cancelled || !containerRef.current) return;
-        api = await createPlinkoGame(containerRef.current);
+        api = await createPlinkoGame(containerRef.current, {
+          multipliers,
+          binWeights,
+        });
         if (cancelled) {
           api.destroy();
           return;
@@ -68,7 +80,7 @@ export default function PlinkoBoard({
       if (apiRef) apiRef.current = null;
       api?.destroy();
     };
-    // Mount-once boot; apiRef/onReady are stable enough for Task 7/8.
+    // Remount when parent changes key / multipliers — intentional.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

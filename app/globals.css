@@ -62,3 +62,37 @@ body::before {
 .wallet-adapter-modal-wrapper {
   z-index: 60 !important;
 }
+
+/* ---- Plinko juice ---- */
+@keyframes plinko-flash-nice {
+  0% { background: rgba(200, 245, 66, 0.18); opacity: 1; }
+  100% { background: rgba(200, 245, 66, 0); opacity: 0; }
+}
+@keyframes plinko-flash-big {
+  0% { background: radial-gradient(ellipse at 50% 40%, rgba(251, 191, 36, 0.45), transparent 60%); opacity: 1; }
+  100% { background: radial-gradient(ellipse at 50% 40%, rgba(251, 191, 36, 0), transparent 60%); opacity: 0; }
+}
+@keyframes plinko-flash-jackpot {
+  0% { background: radial-gradient(ellipse at 50% 35%, rgba(250, 204, 21, 0.55), rgba(255, 183, 197, 0.25) 45%, transparent 70%); opacity: 1; }
+  40% { background: radial-gradient(ellipse at 50% 35%, rgba(250, 204, 21, 0.35), rgba(255, 183, 197, 0.15) 45%, transparent 70%); opacity: 1; }
+  100% { background: radial-gradient(ellipse at 50% 35%, rgba(250, 204, 21, 0), transparent 70%); opacity: 0; }
+}
+@keyframes plinko-toast {
+  0% { transform: translateY(12px) scale(0.85); opacity: 0; }
+  18% { transform: translateY(0) scale(1.05); opacity: 1; }
+  70% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-8px) scale(0.98); opacity: 0; }
+}
+
+.animate-plinko-flash-nice {
+  animation: plinko-flash-nice 0.55s ease-out forwards;
+}
+.animate-plinko-flash-big {
+  animation: plinko-flash-big 0.85s ease-out forwards;
+}
+.animate-plinko-flash-jackpot {
+  animation: plinko-flash-jackpot 1.2s ease-out forwards;
+}
+.animate-plinko-toast {
+  animation: plinko-toast 1.1s ease-out forwards;
+}

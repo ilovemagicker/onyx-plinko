@@ -10,9 +10,9 @@ describe("DEFAULT_MULTIPLIERS", () => {
     expect(DEFAULT_MULTIPLIERS.length % 2).toBe(1);
   });
 
-  it("matches the 17-bin edges-modest polished table", () => {
+  it("matches the 17-bin high-risk 100x table", () => {
     expect(DEFAULT_MULTIPLIERS).toEqual([
-      25, 10, 5, 3, 1.5, 1, 0.7, 0.5, 0.8, 0.5, 0.7, 1, 1.5, 3, 5, 10, 25,
+      100, 20, 8, 4, 2, 1, 0.5, 0.3, 0.5, 0.3, 0.5, 1, 2, 4, 8, 20, 100,
     ]);
   });
 
@@ -24,11 +24,9 @@ describe("DEFAULT_MULTIPLIERS", () => {
     );
   });
 
-  it("keeps edge prizes at or below 40x", () => {
-    expect(DEFAULT_MULTIPLIERS[0]).toBeLessThanOrEqual(40);
-    expect(DEFAULT_MULTIPLIERS[DEFAULT_MULTIPLIERS.length - 1]).toBeLessThanOrEqual(
-      40,
-    );
+  it("restores 100x edge prizes", () => {
+    expect(DEFAULT_MULTIPLIERS[0]).toBe(100);
+    expect(DEFAULT_MULTIPLIERS[DEFAULT_MULTIPLIERS.length - 1]).toBe(100);
   });
 });
 

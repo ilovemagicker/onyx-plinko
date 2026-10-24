@@ -1,10 +1,10 @@
 /**
- * Reference-style Plinko payout table: 17 bins, edges high / center low.
- * Edge prizes kept modest (25x) so jackpots stay rare without blowing RTP.
+ * Default Plinko payout table = High risk (17 bins, 100x edges).
+ * Per-mode tables live in lib/risk-modes.ts.
  * Demo only — not used for real-fund settlement in v1.
  */
 export const DEFAULT_MULTIPLIERS: number[] = [
-  25, 10, 5, 3, 1.5, 1, 0.7, 0.5, 0.8, 0.5, 0.7, 1, 1.5, 3, 5, 10, 25,
+  100, 20, 8, 4, 2, 1, 0.5, 0.3, 0.5, 0.3, 0.5, 1, 2, 4, 8, 20, 100,
 ];
 
 /**

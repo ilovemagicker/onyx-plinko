@@ -53,6 +53,7 @@ function formatMult(m: number): string {
 }
 
 function binColor(mult: number): number {
+  if (mult >= 100) return 0xf59e0b;
   if (mult >= 20) return 0xb91c1c;
   if (mult >= 8) return 0xef4444;
   if (mult >= 4) return 0xf97316;
@@ -63,8 +64,12 @@ function binColor(mult: number): number {
 
 export type CreatePlinkoGameOptions = {
   multipliers?: number[];
+  /** Settlement weights (same length as multipliers). Defaults to DEMO_BIN_WEIGHTS. */
+  binWeights?: number[];
   width?: number;
   height?: number;
+  /** Optional land celebration callback (React juice listens via DropResult too). */
+  onLandJuice?: (result: DropResult) => void;
 };
 
 /**
@@ -83,8 +88,13 @@ export async function createPlinkoGame(
 
   const width = options.width ?? BOARD_WIDTH;
   const height = options.height ?? BOARD_HEIGHT;
-  const multipliers = options.multipliers ?? DEFAULT_MULTIPLIERS;
+  let multipliers = [...(options.multipliers ?? DEFAULT_MULTIPLIERS)];
+  let binWeights = [...(options.binWeights ?? DEMO_BIN_WEIGHTS)];
+  if (binWeights.length !== multipliers.length) {
+    throw new Error("binWeights length must match multipliers");
+  }
   const binCount = multipliers.length;
+  const onLandJuice = options.onLandJuice;
 
   let speedScale = 1;
   let nextBallId = 1;
@@ -107,6 +117,7 @@ export async function createPlinkoGame(
       onTimeout: (body: MatterBody) => void,
     ) => MatterBody;
     removeBall: (body: MatterBody) => void;
+    celebrateBin: (binIndex: number, mult: number) => void;
   };
 
   let sceneApi: SceneApi | null = null;
@@ -149,6 +160,7 @@ export async function createPlinkoGame(
         spawnBall: (id, seed, targetBin, onTimeout) =>
           this.spawnBall(id, seed, targetBin, onTimeout),
         removeBall: (body) => this.removeBall(body),
+        celebrateBin: (binIndex, mult) => this.celebrateBin(binIndex, mult),
       };
     }
 
@@ -338,10 +350,13 @@ export async function createPlinkoGame(
       void counts;
     }
 
+    private binRects: Array<{ rect: { x: number; y: number; active: boolean; setFillStyle: (c: number, a: number) => void; setStrokeStyle: (w: number, c: number, a: number) => void; setScale: (x: number, y?: number) => void }; baseColor: number }> = [];
+
     private createBins() {
       const binTop = height - 100;
       const binHeight = 72;
       const binW = width / binCount;
+      this.binRects = [];
 
       // Soft shelf under bins
       const shelf = this.add.graphics();
@@ -384,6 +399,7 @@ export async function createPlinkoGame(
         const rect = this.add.rectangle(cx, binTop + binHeight / 2, chipW, chipH, color, 0.42);
         rect.setStrokeStyle(1.5, color, 0.95);
         rect.setDepth(2);
+        this.binRects.push({ rect, baseColor: color });
         this.add
           .text(cx, binTop + binHeight / 2, formatMult(mult), {
             fontSize: binCount > 12 ? "8px" : "11px",
@@ -393,6 +409,51 @@ export async function createPlinkoGame(
           })
           .setOrigin(0.5)
           .setDepth(3);
+      }
+    }
+
+    /** Brief flash + spark burst on the settled bin. */
+    celebrateBin(binIndex: number, mult: number) {
+      const entry = this.binRects[binIndex];
+      if (!entry) return;
+      const { rect, baseColor } = entry;
+      const flashColor = mult >= 100 ? 0xffe566 : mult >= 15 ? 0xfff1a8 : 0xc8f542;
+      rect.setFillStyle(flashColor, 0.95);
+      rect.setStrokeStyle(2.5, 0xffffff, 1);
+      this.tweens.add({
+        targets: rect,
+        scaleX: 1.18,
+        scaleY: 1.18,
+        duration: 120,
+        yoyo: true,
+        ease: "Quad.easeOut",
+        onComplete: () => {
+          if (!rect.active) return;
+          rect.setScale(1);
+          rect.setFillStyle(baseColor, 0.42);
+          rect.setStrokeStyle(1.5, baseColor, 0.95);
+        },
+      });
+
+      // Lightweight particle burst (circles)
+      const cx = rect.x;
+      const cy = rect.y;
+      const n = mult >= 15 ? 14 : mult >= 3 ? 8 : 0;
+      for (let i = 0; i < n; i++) {
+        const ang = (Math.PI * 2 * i) / n + Math.random() * 0.2;
+        const dist = 18 + Math.random() * 28;
+        const dot = this.add.circle(cx, cy, 2 + Math.random() * 2.5, flashColor, 0.95);
+        dot.setDepth(20);
+        this.tweens.add({
+          targets: dot,
+          x: cx + Math.cos(ang) * dist,
+          y: cy + Math.sin(ang) * dist - 10,
+          alpha: 0,
+          scale: 0.2,
+          duration: 320 + Math.random() * 180,
+          ease: "Quad.easeOut",
+          onComplete: () => dot.destroy(),
+        });
       }
     }
 
@@ -542,15 +603,23 @@ export async function createPlinkoGame(
     pending.delete(ballId);
     clearTimeout(entry.timeoutId);
 
+    const safeIndex = Math.min(binCount - 1, Math.max(0, entry.targetBin));
+    const mult = multipliers[safeIndex] ?? 1;
+
+    if (sceneApi && mult >= 3) {
+      sceneApi.celebrateBin(safeIndex, mult);
+    }
+
     if (ballBody && sceneApi) {
       sceneApi.removeBall(ballBody);
     }
 
-    const safeIndex = Math.min(binCount - 1, Math.max(0, entry.targetBin));
-    entry.resolve({
+    const result: DropResult = {
       binIndex: safeIndex,
-      multiplier: multipliers[safeIndex] ?? 1,
-    });
+      multiplier: mult,
+    };
+    onLandJuice?.(result);
+    entry.resolve(result);
   }
 
   const game = new Phaser.Game({
@@ -600,7 +669,7 @@ export async function createPlinkoGame(
           }
           const ballId = nextBallId++;
           // Settlement odds from published weights; physics only steers visually.
-          const targetBin = pickBinIndex(DEMO_BIN_WEIGHTS);
+          const targetBin = pickBinIndex(binWeights);
           pending.set(ballId, {
             resolve,
             reject,
