@@ -1,11 +1,15 @@
 "use client";
 
+import { useCallback } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import type { Asset } from "@/lib/assets";
 
 export type ShellHeaderProps = {
   balance: number;
   asset: Asset;
-  onConnectClick?: () => void;
+  /** Connected wallet address (base58) or null for guest. */
+  address?: string | null;
 };
 
 function formatBalance(n: number): string {
@@ -15,11 +19,25 @@ function formatBalance(n: number): string {
   });
 }
 
-export function ShellHeader({
-  balance,
-  asset,
-  onConnectClick,
-}: ShellHeaderProps) {
+export function truncateAddress(address: string): string {
+  if (address.length <= 10) return address;
+  return `${address.slice(0, 4)}…${address.slice(-4)}`;
+}
+
+export function ShellHeader({ balance, asset, address = null }: ShellHeaderProps) {
+  const { connected, disconnecting, disconnect } = useWallet();
+  const { setVisible } = useWalletModal();
+
+  const onClick = useCallback(() => {
+    if (connected) {
+      void disconnect();
+      return;
+    }
+    setVisible(true);
+  }, [connected, disconnect, setVisible]);
+
+  const label = connected && address ? truncateAddress(address) : "Connect";
+
   return (
     <header className="flex items-start justify-between gap-3">
       <div>
@@ -37,10 +55,16 @@ export function ShellHeader({
         </p>
         <button
           type="button"
-          onClick={onConnectClick}
-          className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-medium text-[var(--foreground)] hover:border-[var(--accent)]"
+          onClick={onClick}
+          disabled={disconnecting}
+          title={
+            connected && address
+              ? `${address} — click to disconnect`
+              : "Connect Phantom (demo identity only)"
+          }
+          className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-medium text-[var(--foreground)] hover:border-[var(--accent)] disabled:opacity-50"
         >
-          Connect
+          {label}
         </button>
       </div>
     </header>

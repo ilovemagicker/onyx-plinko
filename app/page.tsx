@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { AssetToggle } from "@/components/AssetToggle";
 import { Controls } from "@/components/Controls";
 import { DemoBanner } from "@/components/DemoBanner";
@@ -11,7 +12,6 @@ import { applyDrop, creditGuestStart } from "@/lib/ledger";
 import { loadBalance, saveBalance } from "@/lib/ledger-storage";
 import { DEFAULT_MULTIPLIERS } from "@/lib/multipliers";
 
-const GUEST_ADDRESS: string | null = null;
 const AUTO_COUNT = 5;
 
 function pickStubMultiplier(): number {
@@ -20,6 +20,12 @@ function pickStubMultiplier(): number {
 }
 
 export default function Home() {
+  const { publicKey } = useWallet();
+  const address = useMemo(
+    () => (publicKey ? publicKey.toBase58() : null),
+    [publicKey],
+  );
+
   const [asset, setAsset] = useState<Asset>("SOL");
   const [balance, setBalance] = useState(() => creditGuestStart());
   const [ballCost, setBallCost] = useState(DEFAULT_BALL_COST);
@@ -27,12 +33,12 @@ export default function Home() {
   const [hydrated, setHydrated] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
 
-  // Load guest balance for current asset after mount (localStorage).
+  // On connect / disconnect / asset change: reload demo balance for identity.
   useEffect(() => {
-    const next = loadBalance(GUEST_ADDRESS, asset, creditGuestStart());
+    const next = loadBalance(address, asset, creditGuestStart());
     setBalance(next);
     setHydrated(true);
-  }, [asset]);
+  }, [address, asset]);
 
   const onBuy = useCallback(() => {
     setBalance((prev) => {
@@ -42,11 +48,11 @@ export default function Home() {
         setLastResult("Insufficient balance");
         return prev;
       }
-      saveBalance(GUEST_ADDRESS, asset, result.balance);
+      saveBalance(address, asset, result.balance);
       setLastResult(`Landed ${multiplier}x → bal ${result.balance}`);
       return result.balance;
     });
-  }, [asset, ballCost]);
+  }, [address, asset, ballCost]);
 
   const onAuto = useCallback(() => {
     setBalance((prev) => {
@@ -62,18 +68,18 @@ export default function Home() {
               ? "Insufficient balance"
               : `AUTO stopped after ${landed}; last ${lastMult}x`,
           );
-          if (landed > 0) saveBalance(GUEST_ADDRESS, asset, current);
+          if (landed > 0) saveBalance(address, asset, current);
           return current;
         }
         current = result.balance;
         lastMult = multiplier;
         landed += 1;
       }
-      saveBalance(GUEST_ADDRESS, asset, current);
+      saveBalance(address, asset, current);
       setLastResult(`AUTO ×${landed}; last ${lastMult}x → bal ${current}`);
       return current;
     });
-  }, [asset, ballCost]);
+  }, [address, asset, ballCost]);
 
   const onAssetChange = useCallback((next: Asset) => {
     setAsset(next);
@@ -85,18 +91,13 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-4 px-4 py-6">
-      <ShellHeader
-        balance={balance}
-        asset={asset}
-        onConnectClick={() => {
-          // Wallet Adapter wired in Task 6.
-          setLastResult("Connect wallet comes in Task 6");
-        }}
-      />
+      <ShellHeader balance={balance} asset={asset} address={address} />
 
       <div className="flex items-center justify-between gap-2">
         <AssetToggle asset={asset} onChange={onAssetChange} />
-        <p className="text-xs text-[var(--muted)]">Guest demo</p>
+        <p className="text-xs text-[var(--muted)]">
+          {address ? "Wallet demo" : "Guest demo"}
+        </p>
       </div>
 
       <DemoBanner />
