@@ -321,6 +321,12 @@ export default function Home() {
           Insufficient {asset} for ball cost {ballCost}.
         </p>
       ) : null}
+
+      <footer className="mt-auto border-t border-[var(--border)] pt-4 text-center text-xs text-[var(--muted)]">
+        <p className="font-medium text-[var(--accent)]">Demo — not real funds</p>
+        <p className="mt-1">Onyx Labs · plinko.onyxlab.dev</p>
+        <p className="mt-1">No wallet signing or on-chain transfers in v1.</p>
+      </footer>
     </main>
   );
 }

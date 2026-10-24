@@ -1,0 +1,5 @@
+# Onyx Plinko — demo site (not real funds)
+User-agent: *
+Allow: /
+
+Sitemap: https://plinko.onyxlab.dev/sitemap.xml
