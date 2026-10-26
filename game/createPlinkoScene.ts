@@ -18,8 +18,12 @@ import {
   STUCK_SHELF_MARGIN,
   antiStuckVelocity,
   ballSpeed,
+  guideClampInset,
   isStuckAboveBins,
+  isYStagnant,
+  spawnDropVelocity,
   steeredVx,
+  velocityWithSteeredX,
 } from "@/lib/anti-stuck";
 
 export const BOARD_WIDTH = 360;
@@ -602,16 +606,19 @@ export async function createPlinkoGame(
       const topSpread = Math.min(pegSpacing * 0.9, width * 0.1);
       const apex = width / 2;
       const radius = 6.5;
-      const spawnY = 26;
+      // Higher than first peg (topY=52) with clearance; initial vy punches through mouth.
+      const spawnY = 22;
       let startX =
         apex +
         (targetX - apex) * 0.28 +
         (unit - 0.5) * topSpread +
         (Math.random() - 0.5) * Math.min(pegSpacing * 0.35, 10);
-      // Keep spawn strictly inside the triangle envelope at the apex.
+      // Keep spawn inside the triangle; inset must not invert the throat
+      // (fixed radius+N used to funnel every ball onto the center apex peg).
       if (guideEndpoints) {
         const env = guideEnvelopeXAtY(guideEndpoints, spawnY);
-        const inset = radius + 3;
+        const gap = env.rightX - env.leftX;
+        const inset = guideClampInset({ gap, preferred: 3, minUsable: 8 });
         startX = Math.min(env.rightX - inset, Math.max(env.leftX + inset, startX));
       }
 
@@ -649,21 +656,32 @@ export async function createPlinkoGame(
         ) => void;
       };
 
+      // Clear initial downward (+ slight horizontal) velocity so the ball
+      // cannot rest at the mouth or balance on the first peg row.
+      {
+        const drop = spawnDropVelocity();
+        matterBodyApi.setVelocity(body, { x: drop.vx, y: drop.vy });
+      }
+
       // Lime trail ghosts (max 8); keep glow glued + steer toward target bin.
       const trails: Phaser.GameObjects.Arc[] = [];
       let trailFrame = 0;
       /** Wall-clock stamp when speed first dropped near zero above the shelf. */
       let stuckSince: number | null = null;
+      /** Y-stagnation window — catches peg rests even when speed flickers. */
+      let stagnantY0 = spawnY;
+      let stagnantFrames = 0;
       const follow = () => {
         if (!body?.position || !glow.active) return;
         let x = body.position.x;
-        const y = body.position.y;
+        let y = body.position.y;
         let vx = body.velocity?.x ?? 0;
-        let vy = body.velocity?.y ?? 0;
+        // Do not cache vy for writes — always re-read engine y when setting velocity.
 
         if (guideEndpoints && y < BIN_TOP - 6) {
           const env = guideEnvelopeXAtY(guideEndpoints, y);
-          const inset = radius + 2;
+          const gap = env.rightX - env.leftX;
+          const inset = guideClampInset({ gap, preferred: 2, minUsable: 10 });
           const minX = env.leftX + inset;
           const maxX = env.rightX - inset;
           if (x < minX) {
@@ -719,7 +737,8 @@ export async function createPlinkoGame(
         }
 
         // Track near-zero motion above the bin shelf (peg-apex rest).
-        const speed = ballSpeed(vx, vy);
+        const engVy = body.velocity?.y ?? 0;
+        const speed = ballSpeed(vx, engVy);
         const now = typeof performance !== "undefined" ? performance.now() : Date.now();
         if (speed < STUCK_SPEED_EPSILON && y < BIN_TOP - STUCK_SHELF_MARGIN) {
           if (stuckSince == null) stuckSince = now;
@@ -728,9 +747,30 @@ export async function createPlinkoGame(
         }
         const stuckMs = stuckSince == null ? 0 : now - stuckSince;
 
-        // Root-cause fix: balls can balance on a peg apex. Per-frame vx
-        // damping used to kill tip-off drift; when stuck long enough, nudge.
+        // Y-stagnation: if y barely advances while above the shelf, treat as stuck
+        // even when speed flickers above epsilon from micro-collisions.
+        if (y < BIN_TOP - STUCK_SHELF_MARGIN) {
+          if (y - stagnantY0 < 0.6) {
+            stagnantFrames += 1;
+          } else {
+            stagnantY0 = y;
+            stagnantFrames = 1;
+          }
+        } else {
+          stagnantFrames = 0;
+          stagnantY0 = y;
+        }
+
+        const stagnant = isYStagnant({
+          y,
+          yAtWindowStart: stagnantY0,
+          framesInWindow: stagnantFrames,
+          binTop: BIN_TOP,
+        });
+
+        // Defense in depth: near-zero speed OR y not advancing → unstick.
         if (
+          stagnant ||
           isStuckAboveBins({
             speed,
             y,
@@ -739,20 +779,30 @@ export async function createPlinkoGame(
           })
         ) {
           const nudge = antiStuckVelocity();
+          // Teleport 1–2px down so peg contact can't instantly nullify the impulse.
+          y = y + 1.5;
+          matterBodyApi.setPosition(body, { x, y });
           matterBodyApi.setVelocity(body, {
             x: nudge.vx,
-            y: Math.max(vy, nudge.vy),
+            y: Math.max(engVy, nudge.vy),
           });
           stuckSince = null;
+          stagnantFrames = 0;
+          stagnantY0 = y;
           return;
         }
 
         const dx = targetX - x;
         // Mild horizontal pull; clamp so peg bounces still read as physics.
         // Skip vx damp when nearly stopped so micro-drift can tip off pegs.
+        // Only rewrite x — keep Matter's current vy so gravity is not cancelled.
         const steer = Math.max(-2.8, Math.min(2.8, dx * 0.045));
         const newVx = steeredVx({ vx, steer, speed });
-        matterBodyApi.setVelocity(body, { x: newVx, y: vy });
+        const liveVy = body.velocity?.y ?? engVy;
+        matterBodyApi.setVelocity(
+          body,
+          velocityWithSteeredX({ newVx, engineVy: liveVy }),
+        );
       };
       this.events.on("update", follow);
       const cleanupGlow = () => {
