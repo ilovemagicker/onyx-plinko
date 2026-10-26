@@ -11,6 +11,7 @@ import {
   trianglePegPositions,
 } from "@/lib/peg-layout";
 import type { DropResult, PlinkoGameApi } from "@/game/types";
+import { MAX_CONCURRENT_BALLS } from "@/lib/ball-count";
 
 export const BOARD_WIDTH = 360;
 export const BOARD_HEIGHT = 520;
@@ -99,8 +100,8 @@ export async function createPlinkoGame(
   let speedScale = 1;
   let nextBallId = 1;
   const pending = new Map<number, PendingDrop>();
-  /** Serialize drops so AUTO can await one ball at a time. */
-  let dropChain: Promise<unknown> = Promise.resolve();
+  /** Concurrent in-flight balls (BUY ×N); capped to avoid physics meltdown. */
+  let activeBalls = 0;
 
   // Peg spacing for spawn jitter (set in createPegs).
   let pegSpacing = width / (binCount + 1);
@@ -485,7 +486,10 @@ export async function createPlinkoGame(
       const radius = 6.5;
       const spawnY = 26;
       let startX =
-        apex + (targetX - apex) * 0.28 + (unit - 0.5) * topSpread;
+        apex +
+        (targetX - apex) * 0.28 +
+        (unit - 0.5) * topSpread +
+        (Math.random() - 0.5) * Math.min(pegSpacing * 0.35, 10);
       // Keep spawn strictly inside the triangle envelope at the apex.
       if (guideEndpoints) {
         const env = guideEnvelopeXAtY(guideEndpoints, spawnY);
@@ -661,33 +665,44 @@ export async function createPlinkoGame(
 
   const api: PlinkoGameApi = {
     dropBall(seed?: string) {
-      const run = () =>
-        new Promise<DropResult>((resolve, reject) => {
-          if (!sceneApi) {
-            reject(new Error("Plinko scene not ready"));
-            return;
-          }
-          const ballId = nextBallId++;
-          // Settlement odds from published weights; physics only steers visually.
-          const targetBin = pickBinIndex(binWeights);
-          pending.set(ballId, {
-            resolve,
-            reject,
-            ballId,
-            targetBin,
-            timeoutId: setTimeout(() => undefined, 0),
-          });
-          sceneApi.spawnBall(ballId, seed, targetBin, (body) => {
-            finishDrop(ballId, body);
-          });
-        });
+      return new Promise<DropResult>((resolve, reject) => {
+        if (!sceneApi) {
+          reject(new Error("Plinko scene not ready"));
+          return;
+        }
+        if (activeBalls >= MAX_CONCURRENT_BALLS) {
+          reject(new Error(`Too many balls in flight (max ${MAX_CONCURRENT_BALLS})`));
+          return;
+        }
 
-      const next = dropChain.then(run, run);
-      dropChain = next.then(
-        () => undefined,
-        () => undefined,
-      );
-      return next;
+        const ballId = nextBallId++;
+        activeBalls += 1;
+
+        const settle = (result: DropResult) => {
+          activeBalls = Math.max(0, activeBalls - 1);
+          resolve(result);
+        };
+        const fail = (err: Error) => {
+          activeBalls = Math.max(0, activeBalls - 1);
+          reject(err);
+        };
+
+        // Settlement odds from published weights; physics only steers visually.
+        const targetBin = pickBinIndex(binWeights);
+        pending.set(ballId, {
+          resolve: settle,
+          reject: fail,
+          ballId,
+          targetBin,
+          timeoutId: setTimeout(() => undefined, 0),
+        });
+        // Slight extra spawn jitter so concurrent balls don't stack perfectly.
+        const jitterSeed =
+          seed ?? `c-${ballId}-${Math.random().toString(36).slice(2, 8)}`;
+        sceneApi.spawnBall(ballId, jitterSeed, targetBin, (body) => {
+          finishDrop(ballId, body);
+        });
+      });
     },
 
     setSpeed(speed: number) {
@@ -702,6 +717,7 @@ export async function createPlinkoGame(
         entry.reject(new Error("Board destroyed"));
       }
       pending.clear();
+      activeBalls = 0;
       sceneApi = null;
       game.destroy(true);
     },

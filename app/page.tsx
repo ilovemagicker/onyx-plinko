@@ -11,6 +11,11 @@ import { ShellHeader } from "@/components/ShellHeader";
 import { WldHint } from "@/components/WldHint";
 import type { PlinkoBoardHandle } from "@/game/types";
 import type { Asset } from "@/lib/assets";
+import {
+  DEFAULT_BALL_COUNT,
+  MAX_CONCURRENT_BALLS,
+  clampBallCount,
+} from "@/lib/ball-count";
 import { DEFAULT_BALL_COST } from "@/lib/ball-cost";
 import {
   isStreakMilestone,
@@ -30,8 +35,14 @@ import {
   type RiskMode,
 } from "@/lib/risk-modes";
 
-/** Sequential AUTO drops per run (plan: ~10). */
+/** Sequential AUTO drops per run (plan: ~10). Each step = 1 ball. */
 const AUTO_COUNT = 10;
+
+/** Micro-stagger between spawns in one BUY batch (ms). */
+const SPAWN_STAGGER_MS = 45;
+
+/** Same-frame / double-tap debounce for BUY (ms). */
+const BUY_DEBOUNCE_MS = 80;
 
 const PlinkoBoard = dynamic(() => import("@/components/PlinkoBoard"), {
   ssr: false,
@@ -41,6 +52,12 @@ const PlinkoBoard = dynamic(() => import("@/components/PlinkoBoard"), {
     </div>
   ),
 });
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 export default function Home() {
   const { publicKey } = useWallet();
@@ -54,18 +71,28 @@ export default function Home() {
   const addressRef = useRef<string | null>(null);
   const assetRef = useRef<Asset>("SOL");
   const ballCostRef = useRef(DEFAULT_BALL_COST);
+  const ballCountRef = useRef(DEFAULT_BALL_COUNT);
   const stopAutoRef = useRef(false);
-  const inFlightRef = useRef(false);
+  const buyDebounceRef = useRef(false);
+  const autoInFlightRef = useRef(false);
   const streakRef = useRef(0);
+  /** Cost reserved for balls spawned but not yet settled — prevents overspend on multi-click. */
+  const committedCostRef = useRef(0);
+  const ballsInFlightRef = useRef(0);
+  /** Serialize ledger applies so concurrent lands don't race balance. */
+  const settleMutexRef = useRef(Promise.resolve());
 
   const [asset, setAsset] = useState<Asset>("SOL");
   const [balance, setBalance] = useState(() => creditGuestStart());
   const [ballCost, setBallCost] = useState(DEFAULT_BALL_COST);
+  const [ballCount, setBallCount] = useState(DEFAULT_BALL_COUNT);
   const [speed, setSpeed] = useState(1);
   const [hydrated, setHydrated] = useState(false);
   const [boardReady, setBoardReady] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [buyDebouncing, setBuyDebouncing] = useState(false);
+  const [ballsInFlight, setBallsInFlight] = useState(0);
+  const [committedCost, setCommittedCost] = useState(0);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [risk, setRisk] = useState<RiskMode>(DEFAULT_RISK);
   const [streak, setStreak] = useState(0);
@@ -93,23 +120,28 @@ export default function Home() {
     ballCostRef.current = ballCost;
   }, [ballCost]);
   useEffect(() => {
+    ballCountRef.current = ballCount;
+  }, [ballCount]);
+  useEffect(() => {
     streakRef.current = streak;
   }, [streak]);
+  useEffect(() => {
+    setCommittedCost(committedCostRef.current);
+  }, [ballsInFlight, balance]);
 
   // Same connected address (or guest) keys BOTH WLD and SOL buckets —
   // one identity, two balances. Reload when identity changes; wait until
   // idle so mid-drop settlement (bound to start-of-drop address) is not
   // clobbered.
   useEffect(() => {
-    if (busy || autoRunning) return;
+    if (autoRunning || ballsInFlight > 0) return;
     const next = loadBalance(address, asset, creditGuestStart());
     balanceRef.current = next;
     setBalance(next);
     setHydrated(true);
-  }, [address, asset, busy, autoRunning]);
+  }, [address, asset, autoRunning, ballsInFlight]);
 
   // Spec: wallet switch / disconnect → stop AUTO; in-flight ball still finishes.
-  // Harmless while idle — onAuto resets this to false at start.
   useEffect(() => {
     stopAutoRef.current = true;
   }, [address, asset]);
@@ -133,29 +165,80 @@ export default function Home() {
     if (isStreakMilestone(next) && (!label || tier === "nice")) {
       label = next >= 10 ? `連擊 ×${next}!` : label ?? `連擊 ×${next}`;
     }
-    // Always show toast for big/jackpot; nice only if ≥3x
     setJuiceTier(tier);
     setJuiceText(label);
     if (tier !== "none" || isStreakMilestone(next)) {
       setPulseKey((k) => k + 1);
     }
-    // Clear toast after a beat
     window.setTimeout(() => {
       setJuiceTier("none");
       setJuiceText(null);
     }, tier === "jackpot" ? 1600 : tier === "big" ? 1200 : 800);
   }, []);
 
+  const bumpFlight = useCallback((delta: number) => {
+    ballsInFlightRef.current = Math.max(0, ballsInFlightRef.current + delta);
+    setBallsInFlight(ballsInFlightRef.current);
+  }, []);
+
   /**
-   * One ball: check balance → drop → applyDrop → save.
-   * Settlement address/asset/cost are snapshotted at start (spec: bind to
-   * identity at drop start even if wallet switches mid-animation).
+   * Queue one ledger apply. Concurrent physics lands serialize here.
    */
-  const runOneDrop = useCallback(async (): Promise<
+  const enqueueSettle = useCallback(
+    (args: {
+      cost: number;
+      multiplier: number;
+      settleAddress: string | null;
+      settleAsset: Asset;
+    }): Promise<
+      | { ok: true; balance: number; multiplier: number }
+      | { ok: false; reason: "insufficient" }
+    > => {
+      const run = async () => {
+        const prev = balanceRef.current;
+        const result = applyDrop(prev, args.cost, args.multiplier);
+        // Release reservation regardless — ball left the board.
+        committedCostRef.current = Math.max(
+          0,
+          committedCostRef.current - args.cost,
+        );
+        setCommittedCost(committedCostRef.current);
+        bumpFlight(-1);
+
+        if (!result.ok) {
+          return { ok: false as const, reason: "insufficient" as const };
+        }
+
+        balanceRef.current = result.balance;
+        setBalance(result.balance);
+        saveBalance(args.settleAddress, args.settleAsset, result.balance);
+        triggerJuice(args.multiplier);
+        return {
+          ok: true as const,
+          balance: result.balance,
+          multiplier: args.multiplier,
+        };
+      };
+
+      const next = settleMutexRef.current.then(run, run);
+      settleMutexRef.current = next.then(
+        () => undefined,
+        () => undefined,
+      );
+      return next;
+    },
+    [bumpFlight, triggerJuice],
+  );
+
+  /**
+   * Drop one ball + settle via mutex. Snapshots cost/identity at call time.
+   * Does not check balance itself — caller reserves committed cost.
+   */
+  const dropAndSettle = useCallback(async (): Promise<
     | { ok: true; multiplier: number; balance: number }
     | {
         ok: false;
-        reason: "insufficient" | "no-board" | "error";
+        reason: "no-board" | "error" | "insufficient";
         message?: string;
       }
   > => {
@@ -167,10 +250,8 @@ export default function Home() {
     const cost = ballCostRef.current;
     const settleAddress = addressRef.current;
     const settleAsset = assetRef.current;
-    const prev = balanceRef.current;
-    if (prev < cost) {
-      return { ok: false, reason: "insufficient" };
-    }
+
+    bumpFlight(1);
 
     let multiplier: number;
     try {
@@ -178,6 +259,12 @@ export default function Home() {
       multiplier = landed.multiplier;
     } catch (err) {
       console.error("dropBall failed", err);
+      committedCostRef.current = Math.max(
+        0,
+        committedCostRef.current - cost,
+      );
+      setCommittedCost(committedCostRef.current);
+      bumpFlight(-1);
       return {
         ok: false,
         reason: "error",
@@ -185,67 +272,131 @@ export default function Home() {
       };
     }
 
-    const result = applyDrop(prev, cost, multiplier);
-    if (!result.ok) {
+    return enqueueSettle({
+      cost,
+      multiplier,
+      settleAddress,
+      settleAsset,
+    });
+  }, [bumpFlight, enqueueSettle]);
+
+  /**
+   * AUTO / single-path helper: check available balance, reserve, drop one.
+   */
+  const runOneDrop = useCallback(async (): Promise<
+    | { ok: true; multiplier: number; balance: number }
+    | {
+        ok: false;
+        reason: "insufficient" | "no-board" | "error";
+        message?: string;
+      }
+  > => {
+    const cost = ballCostRef.current;
+    const available = balanceRef.current - committedCostRef.current;
+    if (available < cost) {
       return { ok: false, reason: "insufficient" };
     }
-
-    balanceRef.current = result.balance;
-    setBalance(result.balance);
-    saveBalance(settleAddress, settleAsset, result.balance);
-    triggerJuice(multiplier);
-    return { ok: true, multiplier, balance: result.balance };
-  }, [triggerJuice]);
+    committedCostRef.current += cost;
+    setCommittedCost(committedCostRef.current);
+    return dropAndSettle();
+  }, [dropAndSettle]);
 
   const onBuy = useCallback(async () => {
-    if (inFlightRef.current) return;
+    if (buyDebounceRef.current || autoInFlightRef.current) return;
     if (!boardRef.current) {
       setLastResult("Board not ready");
       return;
     }
-    if (balanceRef.current < ballCostRef.current) {
+
+    const cost = ballCostRef.current;
+    const count = clampBallCount(ballCountRef.current);
+    const need = cost * count;
+    const available = balanceRef.current - committedCostRef.current;
+    if (available < need) {
       setLastResult("Insufficient balance");
       return;
     }
 
-    inFlightRef.current = true;
-    setBusy(true);
-    setLastResult(null);
-    try {
-      const outcome = await runOneDrop();
-      if (!outcome.ok) {
-        setLastResult(
-          outcome.reason === "insufficient"
-            ? "Insufficient balance"
-            : (outcome.message ?? "Drop failed"),
-        );
-        return;
-      }
-      setLastResult(`Landed ${outcome.multiplier}x → bal ${outcome.balance}`);
-    } finally {
-      inFlightRef.current = false;
-      setBusy(false);
+    if (ballsInFlightRef.current + count > MAX_CONCURRENT_BALLS) {
+      setLastResult(`Too many balls on board (max ${MAX_CONCURRENT_BALLS})`);
+      return;
     }
-  }, [runOneDrop]);
+
+    // Brief debounce — unlocks while balls are still flying.
+    buyDebounceRef.current = true;
+    setBuyDebouncing(true);
+    window.setTimeout(() => {
+      buyDebounceRef.current = false;
+      setBuyDebouncing(false);
+    }, BUY_DEBOUNCE_MS);
+
+    committedCostRef.current += need;
+    setCommittedCost(committedCostRef.current);
+    setLastResult(count > 1 ? `Dropping ×${count}…` : null);
+
+    const outcomes: Array<{ multiplier: number; balance: number }> = [];
+    const tasks: Promise<void>[] = [];
+
+    for (let i = 0; i < count; i++) {
+      if (i > 0) await sleep(SPAWN_STAGGER_MS);
+      tasks.push(
+        (async () => {
+          const outcome = await dropAndSettle();
+          if (outcome.ok) {
+            outcomes.push({
+              multiplier: outcome.multiplier,
+              balance: outcome.balance,
+            });
+            setLastResult(
+              count > 1
+                ? `×${outcomes.length}/${count} landed; last ${outcome.multiplier}x → bal ${outcome.balance}`
+                : `Landed ${outcome.multiplier}x → bal ${outcome.balance}`,
+            );
+          } else if (outcomes.length === 0 && i === 0) {
+            setLastResult(
+              outcome.reason === "insufficient"
+                ? "Insufficient balance"
+                : (outcome.message ?? "Drop failed"),
+            );
+          }
+        })(),
+      );
+    }
+
+    await Promise.all(tasks);
+
+    if (outcomes.length > 0) {
+      const last = outcomes[outcomes.length - 1]!;
+      const totalPayoutSense = outcomes.reduce((s, o) => s + o.multiplier, 0);
+      setLastResult(
+        count > 1
+          ? `×${outcomes.length} landed (Σ ${totalPayoutSense.toFixed(1)}x); last ${last.multiplier}x → bal ${last.balance}`
+          : `Landed ${last.multiplier}x → bal ${last.balance}`,
+      );
+    }
+  }, [dropAndSettle]);
 
   const onStopAuto = useCallback(() => {
     stopAutoRef.current = true;
   }, []);
 
   const onAuto = useCallback(async () => {
-    if (inFlightRef.current) return;
+    if (autoInFlightRef.current || buyDebounceRef.current) return;
+    if (ballsInFlightRef.current > 0) {
+      setLastResult("Wait for balls to land before AUTO");
+      return;
+    }
     if (!boardRef.current) {
       setLastResult("Board not ready");
       return;
     }
-    if (balanceRef.current < ballCostRef.current) {
+    if (balanceRef.current - committedCostRef.current < ballCostRef.current) {
       setLastResult("Insufficient balance");
       return;
     }
 
     stopAutoRef.current = false;
-    inFlightRef.current = true;
-    setBusy(true);
+    autoInFlightRef.current = true;
     setAutoRunning(true);
     setLastResult(`AUTO ×${AUTO_COUNT}…`);
 
@@ -259,7 +410,7 @@ export default function Home() {
           stoppedEarly = true;
           break;
         }
-        if (balanceRef.current < ballCostRef.current) {
+        if (balanceRef.current - committedCostRef.current < ballCostRef.current) {
           stoppedEarly = true;
           break;
         }
@@ -302,40 +453,43 @@ export default function Home() {
       }
     } finally {
       stopAutoRef.current = false;
-      inFlightRef.current = false;
-      setBusy(false);
+      autoInFlightRef.current = false;
       setAutoRunning(false);
     }
   }, [runOneDrop]);
 
   const onAssetChange = useCallback(
     (next: Asset) => {
-      if (inFlightRef.current || autoRunning) return;
+      if (autoInFlightRef.current || ballsInFlightRef.current > 0) return;
       setAsset(next);
       setLastResult(null);
     },
-    [autoRunning],
+    [],
   );
 
   const onRiskChange = useCallback(
     (next: RiskMode) => {
-      if (inFlightRef.current || autoRunning) return;
+      if (autoInFlightRef.current || ballsInFlightRef.current > 0) return;
       if (next === risk) return;
-      // Stop AUTO (already blocked above) and remount board via key.
       stopAutoRef.current = true;
       setBoardReady(false);
       setRisk(next);
       saveStoredRisk(next);
       setLastResult(null);
-      // Reset streak when risk table changes — different game feel.
       streakRef.current = 0;
       setStreak(0);
     },
-    [autoRunning, risk],
+    [risk],
   );
 
-  const insufficient = balance < ballCost;
-  const disabled = !hydrated || !boardReady || insufficient;
+  const onBallCountChange = useCallback((n: number) => {
+    setBallCount(clampBallCount(n));
+  }, []);
+
+  const needForBuy = ballCost * ballCount;
+  const freeForBuy = balance - committedCost;
+  const cannotAfford = freeForBuy < needForBuy;
+  const disabled = !hydrated || !boardReady || cannotAfford;
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-md flex-col gap-4 px-4 py-6">
@@ -399,14 +553,16 @@ export default function Home() {
           {!boardReady
             ? "Loading board…"
             : asset === "WLD"
-              ? "Tap BUY BALLS — WLD chips are demo; World connect in v1.1."
-              : "Tap BUY BALLS to drop — demo chips only."}
+              ? "Tap BUY — WLD chips are demo; World connect in v1.1."
+              : "Tap BUY to drop — demo chips only. Multi-click OK."}
         </p>
       )}
 
       <Controls
         ballCost={ballCost}
         onBallCost={setBallCost}
+        ballCount={ballCount}
+        onBallCount={onBallCountChange}
         onBuy={() => {
           void onBuy();
         }}
@@ -417,15 +573,17 @@ export default function Home() {
         speed={speed}
         onSpeed={setSpeed}
         disabled={disabled}
-        busy={busy}
+        busy={buyDebouncing}
         autoRunning={autoRunning}
+        ballsInFlight={ballsInFlight}
         risk={risk}
         onRisk={onRiskChange}
       />
 
-      {insufficient && hydrated ? (
+      {cannotAfford && hydrated ? (
         <p className="text-center text-xs text-[var(--muted)]">
-          Insufficient {asset} for ball cost {ballCost}.
+          Insufficient {asset} for {ballCount}×{ballCost}
+          {committedCost > 0 ? ` (${committedCost} reserved in flight)` : ""}.
         </p>
       ) : null}
 
