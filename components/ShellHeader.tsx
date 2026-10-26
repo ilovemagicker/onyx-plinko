@@ -10,6 +10,9 @@ export type ShellHeaderProps = {
   asset: Asset;
   /** Connected wallet address (base58) or null for guest. */
   address?: string | null;
+  /** When set, shows mute / unmute control. */
+  muted?: boolean;
+  onMuteToggle?: () => void;
 };
 
 function formatBalance(n: number): string {
@@ -24,7 +27,13 @@ export function truncateAddress(address: string): string {
   return `${address.slice(0, 4)}…${address.slice(-4)}`;
 }
 
-export function ShellHeader({ balance, asset, address = null }: ShellHeaderProps) {
+export function ShellHeader({
+  balance,
+  asset,
+  address = null,
+  muted,
+  onMuteToggle,
+}: ShellHeaderProps) {
   const { connected, disconnecting, disconnect } = useWallet();
   const { setVisible } = useWalletModal();
 
@@ -57,12 +66,26 @@ export function ShellHeader({ balance, asset, address = null }: ShellHeaderProps
       </div>
 
       <div className="flex flex-col items-end gap-2">
-        <div className="rounded-full border border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1.5 shadow-[inset_0_0_0_1px_rgba(200,245,66,0.06)]">
-          <p className="text-sm tabular-nums text-[var(--foreground)]">
-            <span className="text-[var(--muted)]">Bal </span>
-            {formatBalance(balance)}{" "}
-            <span className="font-semibold text-[var(--accent)]">{asset}</span>
-          </p>
+        <div className="flex items-center gap-2">
+          {typeof muted === "boolean" && onMuteToggle ? (
+            <button
+              type="button"
+              onClick={onMuteToggle}
+              aria-pressed={muted}
+              aria-label={muted ? "開啟聲音" : "靜音"}
+              title={muted ? "開啟聲音" : "靜音"}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-sm text-[var(--foreground)] transition hover:border-[var(--accent)]/60 hover:shadow-[0_0_16px_-4px_var(--glow)]"
+            >
+              <span aria-hidden>{muted ? "🔇" : "🔊"}</span>
+            </button>
+          ) : null}
+          <div className="rounded-full border border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1.5 shadow-[inset_0_0_0_1px_rgba(200,245,66,0.06)]">
+            <p className="text-sm tabular-nums text-[var(--foreground)]">
+              <span className="text-[var(--muted)]">Bal </span>
+              {formatBalance(balance)}{" "}
+              <span className="font-semibold text-[var(--accent)]">{asset}</span>
+            </p>
+          </div>
         </div>
         <button
           type="button"

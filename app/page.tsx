@@ -24,6 +24,12 @@ import {
   nextStreak,
   type JuiceTier,
 } from "@/lib/juice";
+import {
+  initSfxMuteFromStorage,
+  playStreak,
+  setMuted,
+  unlock as unlockSfx,
+} from "@/lib/sfx";
 import { applyDrop, creditGuestStart } from "@/lib/ledger";
 import { loadBalance, saveBalance } from "@/lib/ledger-storage";
 import {
@@ -99,12 +105,14 @@ export default function Home() {
   const [juiceTier, setJuiceTier] = useState<JuiceTier>("none");
   const [juiceText, setJuiceText] = useState<string | null>(null);
   const [pulseKey, setPulseKey] = useState(0);
+  const [muted, setMutedState] = useState(false);
 
   const multipliers = useMemo(() => getRiskMultipliers(risk), [risk]);
   const binWeights = useMemo(() => getRiskWeights(risk), [risk]);
 
   useEffect(() => {
     setRisk(loadStoredRisk(DEFAULT_RISK));
+    setMutedState(initSfxMuteFromStorage());
   }, []);
 
   useEffect(() => {
@@ -164,6 +172,9 @@ export default function Home() {
     let label = juiceLabel(tier);
     if (isStreakMilestone(next) && (!label || tier === "nice")) {
       label = next >= 10 ? `連擊 ×${next}!` : label ?? `連擊 ×${next}`;
+    }
+    if (isStreakMilestone(next)) {
+      playStreak(next);
     }
     setJuiceTier(tier);
     setJuiceText(label);
@@ -307,6 +318,7 @@ export default function Home() {
       setLastResult("Board not ready");
       return;
     }
+    void unlockSfx();
 
     const cost = ballCostRef.current;
     const count = clampBallCount(ballCountRef.current);
@@ -398,6 +410,7 @@ export default function Home() {
     stopAutoRef.current = false;
     autoInFlightRef.current = true;
     setAutoRunning(true);
+    void unlockSfx();
     setLastResult(`AUTO ×${AUTO_COUNT}…`);
 
     let landed = 0;
@@ -486,6 +499,17 @@ export default function Home() {
     setBallCount(clampBallCount(n));
   }, []);
 
+  const onMuteToggle = useCallback(() => {
+    setMutedState((prev) => {
+      const next = !prev;
+      setMuted(next);
+      if (!next) {
+        void unlockSfx();
+      }
+      return next;
+    });
+  }, []);
+
   const needForBuy = ballCost * ballCount;
   const freeForBuy = balance - committedCost;
   const cannotAfford = freeForBuy < needForBuy;
@@ -500,7 +524,13 @@ export default function Home() {
         pulseKey={pulseKey}
       />
 
-      <ShellHeader balance={balance} asset={asset} address={address} />
+      <ShellHeader
+        balance={balance}
+        asset={asset}
+        address={address}
+        muted={muted}
+        onMuteToggle={onMuteToggle}
+      />
 
       <div className="flex items-center justify-between gap-2">
         <AssetToggle asset={asset} onChange={onAssetChange} />

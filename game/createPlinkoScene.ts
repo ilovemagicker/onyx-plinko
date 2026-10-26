@@ -12,6 +12,7 @@ import {
 } from "@/lib/peg-layout";
 import type { DropResult, PlinkoGameApi } from "@/game/types";
 import { MAX_CONCURRENT_BALLS } from "@/lib/ball-count";
+import { playDrop, playLandForMultiplier, playPegHit } from "@/lib/sfx";
 
 export const BOARD_WIDTH = 360;
 export const BOARD_HEIGHT = 520;
@@ -460,10 +461,18 @@ export async function createPlinkoGame(
 
     private handlePair(a: MatterBody, b: MatterBody) {
       const labels = [a.label, b.label];
+      const ballBody = [a, b].find((body) => body.label?.startsWith("ball-"));
+
+      // Peg (and guide) ticks — throttled inside playPegHit for multi-ball.
+      const hitPeg = labels.some(
+        (l) => l === "peg" || (typeof l === "string" && l.startsWith("guide-")),
+      );
+      if (hitPeg && ballBody) {
+        playPegHit();
+      }
+
       const binLabel = labels.find((l) => typeof l === "string" && l.startsWith("bin-"));
       if (!binLabel) return;
-
-      const ballBody = [a, b].find((body) => body.label?.startsWith("ball-"));
       if (!ballBody || !ballBody.label) return;
 
       const ballId = Number(ballBody.label.slice(5));
@@ -586,6 +595,7 @@ export async function createPlinkoGame(
       const entry = pending.get(ballId);
       if (entry) entry.timeoutId = timeoutId;
 
+      playDrop();
       return body;
     }
 
@@ -622,6 +632,7 @@ export async function createPlinkoGame(
       binIndex: safeIndex,
       multiplier: mult,
     };
+    playLandForMultiplier(mult);
     onLandJuice?.(result);
     entry.resolve(result);
   }
