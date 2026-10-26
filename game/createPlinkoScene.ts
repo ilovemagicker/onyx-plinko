@@ -175,25 +175,32 @@ export async function createPlinkoGame(
 
     private drawJapaneseBackdrop() {
       const g = this.add.graphics();
-      // Soft plum → ink gradient
-      g.fillGradientStyle(0x2a1528, 0x22142a, 0x14101c, 0x0c0a12, 1);
-      g.fillRect(0, 0, width, height);
+      // L0 — darker vertical gradient (top → mid → bottom)
+      g.fillGradientStyle(0x1a1020, 0x1a1020, 0x120e18, 0x120e18, 1);
+      g.fillRect(0, 0, width, height / 2);
+      g.fillGradientStyle(0x120e18, 0x120e18, 0x0a0810, 0x0a0810, 1);
+      g.fillRect(0, height / 2 - 1, width, height / 2 + 1);
 
-      // Sakura bloom washes
-      g.fillStyle(0xffb7c5, 0.14);
-      g.fillCircle(width * 0.18, height * 0.12, 90);
-      g.fillStyle(0xff8fab, 0.1);
-      g.fillCircle(width * 0.88, height * 0.22, 70);
-      g.fillStyle(0xc8f542, 0.05);
-      g.fillCircle(width * 0.5, height * 0.48, 110);
+      // L1 — tighter sakura / accent bokeh (don't steal focus from pegs)
+      g.fillStyle(0xffb7c5, 0.16);
+      g.fillCircle(width * 0.18, height * 0.12, 100);
+      g.fillStyle(0xffb7c5, 0.1);
+      g.fillCircle(width * 0.88, height * 0.18, 70);
+      g.fillStyle(0xc8f542, 0.045);
+      g.fillCircle(width * 0.5, height * 0.55, 120);
 
-      // Soft petal dots
-      g.fillStyle(0xffc9d6, 0.12);
-      for (let i = 0; i < 18; i++) {
-        const px = ((i * 97) % width) + (i % 3) * 7;
-        const py = 30 + ((i * 53) % (height * 0.55));
-        g.fillCircle(px, py, 2 + (i % 3));
+      // L2 — faint horizontal grid hint (mid pyramid only)
+      g.lineStyle(1, 0xffffff, 0.02);
+      for (let y = height * 0.18; y < height * 0.62; y += 28) {
+        g.lineBetween(36, y, width - 36, y);
       }
+
+      // L3 — top / bottom vignette
+      g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.25, 0.25, 0, 0);
+      g.fillRect(0, 0, width, 48);
+      g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.25, 0.25);
+      g.fillRect(0, height - 48, width, 48);
+
       g.setDepth(-10);
     }
 
@@ -264,15 +271,67 @@ export async function createPlinkoGame(
         10,
       );
 
-      // Soft visual rail on the inner face
+      // Visual rails: outer sakura glow → accent main → inner white highlight
       const g = this.add.graphics();
-      g.lineStyle(2.5, 0xc8f542, 0.28);
+      g.lineStyle(10, 0xffb7c5, 0.12);
       g.lineBetween(left[0].x, left[0].y, left[1].x, left[1].y);
       g.lineBetween(right[0].x, right[0].y, right[1].x, right[1].y);
-      g.lineStyle(7, 0xffb7c5, 0.1);
+      g.lineStyle(3, 0xc8f542, 0.55);
       g.lineBetween(left[0].x, left[0].y, left[1].x, left[1].y);
       g.lineBetween(right[0].x, right[0].y, right[1].x, right[1].y);
+      // Inner highlight (~1px toward board center)
+      g.lineStyle(1.25, 0xffffff, 0.35);
+      g.lineBetween(left[0].x + 1, left[0].y, left[1].x + 1, left[1].y);
+      g.lineBetween(right[0].x - 1, right[0].y, right[1].x - 1, right[1].y);
+      // Top crown — drop mouth between rail apexes
+      g.lineStyle(2, 0xc8f542, 0.4);
+      g.lineBetween(left[0].x, left[0].y, right[0].x, right[0].y);
+      // Bottom brackets where rails meet the multiplier shelf
+      g.fillStyle(0xc8f542, 0.2);
+      g.fillRoundedRect(left[1].x - 5, left[1].y - 2, 10, 6, 2);
+      g.fillRoundedRect(right[1].x - 5, right[1].y - 2, 10, 6, 2);
       g.setDepth(-1);
+    }
+
+    /** Visual peg containers for collision scale-punch (physics radii unchanged). */
+    private pegFx: Array<{
+      x: number;
+      y: number;
+      container: Phaser.GameObjects.Container;
+      halo: Phaser.GameObjects.Arc;
+    }> = [];
+
+    private punchPegAt(x: number, y: number) {
+      let best: (typeof this.pegFx)[number] | null = null;
+      let bestD = 14;
+      for (const peg of this.pegFx) {
+        const d = Math.hypot(peg.x - x, peg.y - y);
+        if (d < bestD) {
+          bestD = d;
+          best = peg;
+        }
+      }
+      if (!best) return;
+      this.tweens.killTweensOf(best.container);
+      this.tweens.killTweensOf(best.halo);
+      best.container.setScale(1);
+      best.halo.setAlpha(0.14);
+      this.tweens.add({
+        targets: best.container,
+        scale: 1.25,
+        duration: 40,
+        yoyo: true,
+        ease: "Quad.easeOut",
+      });
+      this.tweens.add({
+        targets: best.halo,
+        alpha: 0.32,
+        duration: 40,
+        yoyo: true,
+        onComplete: () => {
+          if (best?.halo.active) best.halo.setAlpha(0.14);
+        },
+      });
     }
 
     private createPegs() {
@@ -280,6 +339,7 @@ export async function createPlinkoGame(
       const bottomY = height - 132;
       const pegRadius = 4.2;
       const marginX = 30;
+      this.pegFx = [];
 
       const counts = trianglePegCounts(binCount, TRIANGLE_START_PEGS);
       const points = trianglePegPositions({
@@ -307,9 +367,9 @@ export async function createPlinkoGame(
 
       this.createSlantGuides(guides.left, guides.right);
 
-      // Faint pyramid fill behind pegs
+      // Faint pyramid fill behind pegs (alpha lowered so pegs read clearer)
       const fill = this.add.graphics();
-      fill.fillStyle(0xc8f542, 0.03);
+      fill.fillStyle(0xc8f542, 0.02);
       fill.fillTriangle(
         guides.left[0].x,
         guides.left[0].y,
@@ -318,7 +378,7 @@ export async function createPlinkoGame(
         width / 2,
         bottomY + 40,
       );
-      fill.fillStyle(0xffb7c5, 0.04);
+      fill.fillStyle(0xffb7c5, 0.02);
       fill.fillTriangle(
         guides.left[1].x,
         guides.left[1].y,
@@ -340,19 +400,33 @@ export async function createPlinkoGame(
             mask: this.ballCategory,
           },
         });
-        // Glow halo + peg body
-        const halo = this.add.circle(p.x, p.y, pegRadius + 3, 0xffb7c5, 0.18);
-        halo.setDepth(0);
-        const dot = this.add.circle(p.x, p.y, pegRadius, 0xf5e6c8, 1);
-        dot.setStrokeStyle(1.5, 0xe8c48a, 0.95);
-        dot.setDepth(1);
+        // Three-layer peg: sakura halo + metal ring + ivory core (physics r unchanged)
+        const halo = this.add.circle(0, 0, pegRadius + 5, 0xffb7c5, 0.14);
+        const ring = this.add.circle(0, 0, pegRadius + 1.2, 0x3a3228, 0.85);
+        ring.setStrokeStyle(1.4, 0xe8c48a, 0.9);
+        const core = this.add.circle(0, 0, Math.max(1.5, pegRadius - 0.6), 0xf5e6c8, 1);
+        const highlight = this.add.circle(0, -1.4, Math.max(0.8, pegRadius - 2.4), 0xffffff, 0.55);
+        const container = this.add.container(p.x, p.y, [halo, ring, core, highlight]);
+        container.setDepth(1);
+        this.pegFx.push({ x: p.x, y: p.y, container, halo });
       }
 
       // Document row shape for debugging overlays (invisible)
       void counts;
     }
 
-    private binRects: Array<{ rect: { x: number; y: number; active: boolean; setFillStyle: (c: number, a: number) => void; setStrokeStyle: (w: number, c: number, a: number) => void; setScale: (x: number, y?: number) => void }; baseColor: number }> = [];
+    private binRects: Array<{
+      rect: {
+        x: number;
+        y: number;
+        active: boolean;
+        setFillStyle: (c: number, a: number) => void;
+        setStrokeStyle: (w: number, c: number, a: number) => void;
+        setScale: (x: number, y?: number) => void;
+      };
+      baseColor: number;
+      mult: number;
+    }> = [];
 
     private createBins() {
       const binTop = height - 100;
@@ -360,12 +434,14 @@ export async function createPlinkoGame(
       const binW = width / binCount;
       this.binRects = [];
 
-      // Soft shelf under bins
+      // Soft shelf under bins — top accent highlight + bottom inner shadow
       const shelf = this.add.graphics();
       shelf.fillStyle(0x0a0a0e, 0.55);
       shelf.fillRoundedRect(4, binTop - 4, width - 8, binHeight + 10, 10);
-      shelf.lineStyle(1, 0xc8f542, 0.15);
-      shelf.strokeRoundedRect(4, binTop - 4, width - 8, binHeight + 10, 10);
+      shelf.lineStyle(1, 0xc8f542, 0.25);
+      shelf.lineBetween(10, binTop - 4, width - 10, binTop - 4);
+      shelf.fillStyle(0x000000, 0.35);
+      shelf.fillRect(8, binTop + binHeight - 2, width - 16, 6);
       shelf.setDepth(0);
 
       for (let i = 0; i < binCount; i++) {
@@ -398,19 +474,34 @@ export async function createPlinkoGame(
         const color = binColor(mult);
         const chipW = Math.max(binW - 3, 10);
         const chipH = binHeight - 10;
-        const rect = this.add.rectangle(cx, binTop + binHeight / 2, chipW, chipH, color, 0.42);
-        rect.setStrokeStyle(1.5, color, 0.95);
+        const cy = binTop + binHeight / 2;
+
+        // Outer glow for high multipliers (≥20)
+        if (mult >= 20) {
+          const glow = this.add.rectangle(cx, cy, chipW + 5, chipH + 5, color, 0.2);
+          glow.setDepth(1);
+        }
+
+        // Chip fill alpha 0.72 (was 0.42) + fake bevel via bright top / dim sides
+        const rect = this.add.rectangle(cx, cy, chipW, chipH, color, 0.72);
+        rect.setStrokeStyle(1.5, color, 0.55);
         rect.setDepth(2);
-        this.binRects.push({ rect, baseColor: color });
-        this.add
-          .text(cx, binTop + binHeight / 2, formatMult(mult), {
-            fontSize: binCount > 12 ? "8px" : "11px",
+        // Bright top edge (fake bevel)
+        const bevel = this.add.rectangle(cx, cy - chipH / 2 + 1, chipW - 2, 2, color, 1);
+        bevel.setDepth(2.5);
+
+        this.binRects.push({ rect, baseColor: color, mult });
+        const label = this.add
+          .text(cx, cy, formatMult(mult), {
+            fontSize: binCount > 12 ? "9px" : "11px",
             color: "#fafafa",
             fontStyle: "bold",
             fontFamily: "ui-sans-serif, system-ui, sans-serif",
           })
           .setOrigin(0.5)
           .setDepth(3);
+        label.setShadow(0, 1, "#000000", 0, false, true);
+        label.setAlpha(1);
       }
     }
 
@@ -421,7 +512,11 @@ export async function createPlinkoGame(
       const { rect, baseColor } = entry;
       const flashColor = mult >= 100 ? 0xffe566 : mult >= 15 ? 0xfff1a8 : 0xc8f542;
       rect.setFillStyle(flashColor, 0.95);
-      rect.setStrokeStyle(2.5, 0xffffff, 1);
+      if (mult >= 100) {
+        rect.setStrokeStyle(2, 0xffe566, 1);
+      } else {
+        rect.setStrokeStyle(2.5, 0xffffff, 1);
+      }
       this.tweens.add({
         targets: rect,
         scaleX: 1.18,
@@ -432,15 +527,16 @@ export async function createPlinkoGame(
         onComplete: () => {
           if (!rect.active) return;
           rect.setScale(1);
-          rect.setFillStyle(baseColor, 0.42);
-          rect.setStrokeStyle(1.5, baseColor, 0.95);
+          // Settle to chip resting alpha 0.72 (not the old 0.42)
+          rect.setFillStyle(baseColor, 0.72);
+          rect.setStrokeStyle(1.5, baseColor, 0.55);
         },
       });
 
       // Lightweight particle burst (circles)
       const cx = rect.x;
       const cy = rect.y;
-      const n = mult >= 15 ? 14 : mult >= 3 ? 8 : 0;
+      const n = mult >= 100 ? 14 : mult >= 15 ? 14 : mult >= 3 ? 8 : 0;
       for (let i = 0; i < n; i++) {
         const ang = (Math.PI * 2 * i) / n + Math.random() * 0.2;
         const dist = 18 + Math.random() * 28;
@@ -464,11 +560,16 @@ export async function createPlinkoGame(
       const ballBody = [a, b].find((body) => body.label?.startsWith("ball-"));
 
       // Peg (and guide) ticks — throttled inside playPegHit for multi-ball.
-      const hitPeg = labels.some(
-        (l) => l === "peg" || (typeof l === "string" && l.startsWith("guide-")),
+      const pegBody = [a, b].find((body) => body.label === "peg");
+      const hitGuide = labels.some(
+        (l) => typeof l === "string" && l.startsWith("guide-"),
       );
-      if (hitPeg && ballBody) {
+      if ((pegBody || hitGuide) && ballBody) {
         playPegHit();
+      }
+      // Visual-only peg punch (physics restitution unchanged)
+      if (pegBody?.position && ballBody) {
+        this.punchPegAt(pegBody.position.x, pegBody.position.y);
       }
 
       const binLabel = labels.find((l) => typeof l === "string" && l.startsWith("bin-"));
@@ -506,11 +607,11 @@ export async function createPlinkoGame(
         startX = Math.min(env.rightX - inset, Math.max(env.leftX + inset, startX));
       }
 
-      // Outer glow
-      const glow = this.add.circle(startX, spawnY, radius + 5, 0xc8f542, 0.28);
+      // Outer glow (stronger) + lime core
+      const glow = this.add.circle(startX, spawnY, radius + 6, 0xc8f542, 0.32);
       glow.setDepth(4);
-      const visual = this.add.circle(startX, spawnY, radius, 0xd4ff6a, 1);
-      visual.setStrokeStyle(2, 0xffffff, 0.65);
+      const visual = this.add.circle(startX, spawnY, radius, 0xe8ff8a, 1);
+      visual.setStrokeStyle(1.5, 0xffffff, 0.75);
       visual.setDepth(5);
 
       this.matter.add.gameObject(visual, {
@@ -540,8 +641,9 @@ export async function createPlinkoGame(
         ) => void;
       };
 
-      // Keep glow glued + gently steer toward target bin while falling.
-      // Also hard-clamp X inside the triangle rails above the bin shelf.
+      // Lime trail ghosts (max 8); keep glow glued + steer toward target bin.
+      const trails: Phaser.GameObjects.Arc[] = [];
+      let trailFrame = 0;
       const follow = () => {
         if (!body?.position || !glow.active) return;
         let x = body.position.x;
@@ -574,6 +676,38 @@ export async function createPlinkoGame(
         }
 
         glow.setPosition(x, y);
+
+        // Short lime trail every 2–3 frames (cap 8 ghosts for perf)
+        trailFrame += 1;
+        if (trailFrame % 3 === 0) {
+          while (trails.length >= 8) {
+            const old = trails.shift();
+            if (old?.active) old.destroy();
+          }
+          const ghost = this.add.circle(x, y, radius * 0.7, 0xc8f542, 0.35);
+          ghost.setDepth(4);
+          trails.push(ghost);
+          this.tweens.add({
+            targets: ghost,
+            alpha: 0,
+            scale: 0.4,
+            duration: 240,
+            ease: "Quad.easeOut",
+            onComplete: () => {
+              const idx = trails.indexOf(ghost);
+              if (idx >= 0) trails.splice(idx, 1);
+              if (ghost.active) ghost.destroy();
+            },
+          });
+        }
+
+        // Near shelf: brief squash before bin celebrate
+        if (y > BIN_TOP - 18 && y < BIN_TOP + 8 && visual.active) {
+          visual.setScale(1, 0.85);
+        } else if (visual.active) {
+          visual.setScale(1, 1);
+        }
+
         const dx = targetX - x;
         // Mild horizontal pull; clamp so peg bounces still read as physics.
         const steer = Math.max(-2.8, Math.min(2.8, dx * 0.045));
@@ -584,6 +718,10 @@ export async function createPlinkoGame(
       const cleanupGlow = () => {
         this.events.off("update", follow);
         if (glow.active) glow.destroy();
+        for (const t of trails) {
+          if (t.active) t.destroy();
+        }
+        trails.length = 0;
       };
       body._cleanupGlow = cleanupGlow;
 
