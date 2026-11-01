@@ -25,6 +25,16 @@ import {
   steeredVx,
   velocityWithSteeredX,
 } from "@/lib/anti-stuck";
+import {
+  RAIL_CLAMP_MIN_USABLE,
+  RAIL_CLAMP_PREFERRED,
+  RAIL_OUTER_OFFSETS,
+  RAIL_THICKNESS_BACKUP,
+  RAIL_THICKNESS_PRIMARY,
+  clampInsideRailEnvelope,
+  railBounceVx,
+  railEdgePullVx,
+} from "@/lib/rail-contain";
 
 export const BOARD_WIDTH = 360;
 export const BOARD_HEIGHT = 520;
@@ -234,11 +244,15 @@ export async function createPlinkoGame(
           mask: this.ballCategory,
         },
       };
-      const thickness = 24;
-      // Safety outer walls (far from triangle gutters)
-      this.matter.add.rectangle(-thickness / 2, height / 2, thickness, height, wallOpts);
-      this.matter.add.rectangle(width + thickness / 2, height / 2, thickness, height, wallOpts);
-      this.matter.add.rectangle(width / 2, height + 10, width + 40, 24, {
+      const thickness = 36;
+      // Safety outer walls — last resort if a ball somehow clears every slant rail.
+      this.matter.add.rectangle(-thickness / 2, height / 2, thickness, height + 80, wallOpts);
+      this.matter.add.rectangle(width + thickness / 2, height / 2, thickness, height + 80, wallOpts);
+      this.matter.add.rectangle(width / 2, -16, width + 80, 28, {
+        ...wallOpts,
+        label: "ceiling",
+      });
+      this.matter.add.rectangle(width / 2, height + 10, width + 80, 28, {
         ...wallOpts,
         label: "floor",
       });
@@ -264,8 +278,8 @@ export async function createPlinkoGame(
           isStatic: true,
           label,
           angle,
-          friction: 0.12,
-          restitution: 0.25,
+          friction: 0.14,
+          restitution: 0.18,
           collisionFilter: {
             category: this.pegCategory,
             mask: this.ballCategory,
@@ -273,21 +287,39 @@ export async function createPlinkoGame(
         });
       };
 
-      // Thick primary rails + slightly outer backup to stop tunneling.
-      addSegment(left[0], left[1], "guide-left", 14);
-      addSegment(right[0], right[1], "guide-right", 14);
-      const outward = 8;
+      // Stack parallel rails outward so tunneling cannot reach the board-edge
+      // gutter (the "outside the line" path between chevron rails and walls).
+      for (let i = 0; i < RAIL_OUTER_OFFSETS.length; i++) {
+        const outward = RAIL_OUTER_OFFSETS[i]!;
+        const thick = i === 0 ? RAIL_THICKNESS_PRIMARY : RAIL_THICKNESS_BACKUP;
+        const suffix = i === 0 ? "" : `-outer${i}`;
+        addSegment(
+          { x: left[0].x - outward, y: left[0].y },
+          { x: left[1].x - outward, y: left[1].y },
+          `guide-left${suffix}`,
+          thick,
+        );
+        addSegment(
+          { x: right[0].x + outward, y: right[0].y },
+          { x: right[1].x + outward, y: right[1].y },
+          `guide-right${suffix}`,
+          thick,
+        );
+      }
+
+      // Mouth caps: short horizontal lips so a bounce cannot leap over the apex.
+      const mouthY = Math.min(left[0].y, right[0].y) - 2;
       addSegment(
-        { x: left[0].x - outward, y: left[0].y },
-        { x: left[1].x - outward, y: left[1].y },
-        "guide-left-outer",
-        10,
+        { x: 4, y: mouthY },
+        { x: left[0].x - 2, y: mouthY },
+        "guide-mouth-left",
+        12,
       );
       addSegment(
-        { x: right[0].x + outward, y: right[0].y },
-        { x: right[1].x + outward, y: right[1].y },
-        "guide-right-outer",
-        10,
+        { x: right[0].x + 2, y: mouthY },
+        { x: width - 4, y: mouthY },
+        "guide-mouth-right",
+        12,
       );
 
       // Candy chevron side rails (arcade runway)
@@ -702,7 +734,11 @@ export async function createPlinkoGame(
       if (guideEndpoints) {
         const env = guideEnvelopeXAtY(guideEndpoints, spawnY);
         const gap = env.rightX - env.leftX;
-        const inset = guideClampInset({ gap, preferred: 3, minUsable: 8 });
+        const inset = guideClampInset({
+          gap,
+          preferred: RAIL_CLAMP_PREFERRED,
+          minUsable: RAIL_CLAMP_MIN_USABLE,
+        });
         startX = Math.min(env.rightX - inset, Math.max(env.leftX + inset, startX));
       }
 
@@ -766,28 +802,29 @@ export async function createPlinkoGame(
         let vx = body.velocity?.x ?? 0;
         // Do not cache vy for writes — always re-read engine y when setting velocity.
 
-        if (guideEndpoints && y < BIN_TOP - 6) {
+        // Contain inside chevron rails until the bin shelf — seals left/right
+        // gutters even if Matter tunnels a thin slant segment for a frame.
+        if (guideEndpoints && y < BIN_TOP + 12) {
           const env = guideEnvelopeXAtY(guideEndpoints, y);
           const gap = env.rightX - env.leftX;
-          const inset = guideClampInset({ gap, preferred: 2, minUsable: 10 });
-          const minX = env.leftX + inset;
-          const maxX = env.rightX - inset;
-          if (x < minX) {
-            x = minX;
-            vx = Math.abs(vx) * 0.25 + 0.4;
-            matterBodyApi.setPosition(body, { x, y });
-          } else if (x > maxX) {
-            x = maxX;
-            vx = -Math.abs(vx) * 0.25 - 0.4;
+          const inset = guideClampInset({
+            gap,
+            preferred: RAIL_CLAMP_PREFERRED,
+            minUsable: RAIL_CLAMP_MIN_USABLE,
+          });
+          const hit = clampInsideRailEnvelope({ x, env, inset });
+          if (hit) {
+            x = hit.x;
+            vx = railBounceVx(hit.side, vx);
             matterBodyApi.setPosition(body, { x, y });
           } else {
-            // Soft inward pull when near the rail so gutters never look empty.
-            const edgeZone = Math.max(8, pegSpacing * 0.35);
-            if (x - minX < edgeZone) {
-              vx += 0.35;
-            } else if (maxX - x < edgeZone) {
-              vx -= 0.35;
-            }
+            vx = railEdgePullVx({
+              x,
+              env,
+              inset,
+              vx,
+              edgeZone: Math.max(8, pegSpacing * 0.35),
+            });
           }
         }
 
@@ -875,9 +912,25 @@ export async function createPlinkoGame(
           const nudge = antiStuckVelocity();
           // Teleport 1–2px down so peg contact can't instantly nullify the impulse.
           y = y + 1.5;
+          let nudgeVx = nudge.vx;
+          // Re-contain after the sideways kick so unstick never launches into the gutter.
+          if (guideEndpoints) {
+            const env = guideEnvelopeXAtY(guideEndpoints, y);
+            const gap = env.rightX - env.leftX;
+            const inset = guideClampInset({
+              gap,
+              preferred: RAIL_CLAMP_PREFERRED,
+              minUsable: RAIL_CLAMP_MIN_USABLE,
+            });
+            const hit = clampInsideRailEnvelope({ x, env, inset });
+            if (hit) {
+              x = hit.x;
+              nudgeVx = railBounceVx(hit.side, nudgeVx);
+            }
+          }
           matterBodyApi.setPosition(body, { x, y });
           matterBodyApi.setVelocity(body, {
-            x: nudge.vx,
+            x: nudgeVx,
             y: Math.max(engVy, nudge.vy),
           });
           stuckSince = null;
@@ -981,6 +1034,9 @@ export async function createPlinkoGame(
         gravity: { x: 0, y: 1.35 },
         // Explicit: resting on a peg must not sleep; steer/anti-stuck need wake.
         enableSleeping: false,
+        // Extra solver passes cut high-speed rail tunneling (AUTO / speedScale).
+        positionIterations: 8,
+        velocityIterations: 6,
       },
     },
     // NONE: render at logical 360×520; CSS stretches into the aspect-locked stage.
