@@ -50,7 +50,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">
+      <body className="h-full overflow-hidden antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

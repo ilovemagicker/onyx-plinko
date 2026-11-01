@@ -88,22 +88,30 @@ export default function PlinkoBoard({
     <div
       className={
         className ??
-        "relative w-full overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_0_0_1px_rgba(200,245,66,0.08),0_0_40px_-8px_rgba(200,245,66,0.25),0_0_80px_-20px_rgba(255,183,197,0.2)]"
+        "plinko-board-frame relative h-full w-full overflow-hidden rounded-2xl"
       }
     >
-      {/* Soft sakura / ink wash behind canvas */}
+      {/* Soft lacquer wash behind canvas */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_8%,rgba(255,183,197,0.22),transparent_48%),radial-gradient(ellipse_at_88%_28%,rgba(255,143,171,0.14),transparent_42%),radial-gradient(ellipse_at_50%_70%,rgba(200,245,66,0.06),transparent_55%),linear-gradient(180deg,#1c1224_0%,#0c0c12_72%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_8%,rgba(212,175,118,0.16),transparent_42%),radial-gradient(ellipse_at_18%_30%,rgba(255,183,197,0.08),transparent_40%),radial-gradient(ellipse_at_85%_40%,rgba(200,245,66,0.05),transparent_38%),linear-gradient(180deg,#1a1216_0%,#0a080e_78%)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/40 to-transparent"
+        className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[var(--brass)]/50 to-transparent"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-3 left-0 w-px bg-gradient-to-b from-transparent via-[var(--brass)]/25 to-transparent"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-3 right-0 w-px bg-gradient-to-b from-transparent via-[var(--brass)]/25 to-transparent"
       />
       <div
         id="plinko-root"
         ref={containerRef}
-        className="relative mx-auto aspect-[360/520] w-full max-w-[360px]"
+        className="relative mx-auto h-full w-full max-w-[420px]"
       />
       {status === "loading" ? (
         <p className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-xs text-[var(--muted)]">
