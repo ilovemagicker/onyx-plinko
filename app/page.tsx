@@ -592,9 +592,9 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Board column */}
+      {/* Board column — flex-1 slot height is independent of canvas paint */}
       <section className="relative flex min-h-0 flex-1 flex-col gap-1.5">
-        <div className="relative min-h-0 flex-1">
+        <div className="relative min-h-0 w-full flex-1 overflow-hidden">
           <PlinkoBoard
             key={risk}
             apiRef={boardRef}
@@ -619,19 +619,22 @@ export default function Home() {
           ) : null}
         </div>
 
-        {lastResult ? (
-          <p className="truncate rounded-lg border border-[var(--brass)]/20 bg-[var(--brass)]/5 px-2.5 py-1 text-center text-[11px] font-medium text-[var(--accent)] sm:text-xs">
-            {lastResult}
-          </p>
-        ) : (
-          <p className="truncate text-center text-[10px] text-[var(--muted)] sm:text-[11px]">
-            {!boardReady
-              ? "Loading board…"
-              : asset === "WLD"
-                ? "Tap BUY — WLD chips are demo; World connect in v1.1."
-                : "Tap BUY to drop — demo chips only. Multi-click OK."}
-          </p>
-        )}
+        {/* Fixed-height status so result text cannot reflow the board slot */}
+        <div className="flex h-6 shrink-0 items-center justify-center overflow-hidden px-1">
+          {lastResult ? (
+            <p className="w-full truncate rounded-lg border border-[var(--brass)]/20 bg-[var(--brass)]/5 px-2.5 py-0.5 text-center text-[11px] font-medium text-[var(--accent)] sm:text-xs">
+              {lastResult}
+            </p>
+          ) : (
+            <p className="w-full truncate text-center text-[10px] text-[var(--muted)] sm:text-[11px]">
+              {!boardReady
+                ? "Loading board…"
+                : asset === "WLD"
+                  ? "Tap BUY — WLD chips are demo; World connect in v1.1."
+                  : "Tap BUY to drop — demo chips only. Multi-click OK."}
+            </p>
+          )}
+        </div>
 
         {/* Mobile controls under board */}
         <div className="shrink-0 lg:hidden">
@@ -656,12 +659,11 @@ export default function Home() {
             risk={risk}
             onRisk={onRiskChange}
           />
-          {cannotAfford && hydrated ? (
-            <p className="mt-1 text-center text-[10px] text-[var(--muted)]">
-              Insufficient {asset} for {ballCount}×{ballCost}
-              {committedCost > 0 ? ` (${committedCost} reserved in flight)` : ""}.
-            </p>
-          ) : null}
+          <p className="mt-1 h-4 text-center text-[10px] text-[var(--muted)]">
+            {cannotAfford && hydrated
+              ? `Insufficient ${asset} for ${ballCount}×${ballCost}${committedCost > 0 ? ` (${committedCost} reserved in flight)` : ""}.`
+              : " "}
+          </p>
         </div>
       </section>
     </main>

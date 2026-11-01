@@ -895,6 +895,12 @@ export async function createPlinkoGame(
     entry.resolve(result);
   }
 
+  // Pin parent box so canvas cannot alter flex layout (FIT used to thrash size).
+  parent.style.position = parent.style.position || "relative";
+  parent.style.overflow = "hidden";
+  parent.style.width = "100%";
+  parent.style.height = "100%";
+
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     width,
@@ -911,12 +917,29 @@ export async function createPlinkoGame(
         enableSleeping: false,
       },
     },
+    // NONE: render at logical 360×520; CSS stretches into the aspect-locked stage.
+    // Avoids Scale.FIT reading parent → writing canvas size → parent reflow loops.
     scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      mode: Phaser.Scale.NONE,
     },
     scene: PlinkoScene,
   });
+
+  // Force canvas to fill the locked stage; ignore devicePixelRatio churn.
+  const applyCanvasFill = () => {
+    const canvas = game.canvas;
+    if (!canvas) return;
+    canvas.style.display = "block";
+    canvas.style.position = "absolute";
+    canvas.style.left = "0";
+    canvas.style.top = "0";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.maxWidth = "100%";
+    canvas.style.maxHeight = "100%";
+  };
+  applyCanvasFill();
+  game.events.on("ready", applyCanvasFill);
 
   await new Promise<void>((resolve, reject) => {
     const started = Date.now();
