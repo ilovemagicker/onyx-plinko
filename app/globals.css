@@ -73,11 +73,27 @@ body::before {
   z-index: 60 !important;
 }
 
-/* One-screen shell — no page scroll */
+/* One-screen shell — no page scroll.
+   Prefer svh (stable) so mobile URL-bar show/hide does not thrash board size.
+   Fall back to dvh then vh. */
 .plinko-shell {
+  height: 100vh;
   height: 100dvh;
+  height: 100svh;
+  max-height: 100vh;
   max-height: 100dvh;
+  max-height: 100svh;
   overflow: hidden;
+}
+
+/* Phaser canvas must never drive layout */
+#plinko-root,
+#plinko-root canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .plinko-panel {
