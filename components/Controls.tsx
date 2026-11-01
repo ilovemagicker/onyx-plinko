@@ -43,6 +43,15 @@ export type ControlsProps = {
   onRisk: (risk: RiskMode) => void;
 };
 
+function chipClass(active: boolean, extraActive = ""): string {
+  const base =
+    "min-w-8 rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-9 sm:px-3 sm:py-1.5 sm:text-xs";
+  if (active) {
+    return `${base} plinko-chip-active ${extraActive}`.trim();
+  }
+  return `${base} plinko-chip`;
+}
+
 export function Controls({
   ballCost,
   onBallCost,
@@ -70,14 +79,20 @@ export function Controls({
     ballCount > 1 ? `BUY ×${ballCount}` : "BUY BALLS";
 
   return (
-    <div className="flex flex-col gap-3.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+    <div className="plinko-panel flex flex-col gap-2 rounded-2xl p-2.5 sm:gap-2.5 sm:p-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="w-12 text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--brass)]/80 sm:w-14 sm:text-[10px]">
           Risk
         </span>
         {RISK_MODE_IDS.map((id) => {
           const active = id === risk;
           const label = RISK_LABELS[id];
+          const activeExtra =
+            id === "high"
+              ? "plinko-chip-risk-high"
+              : id === "medium"
+                ? "plinko-chip-risk-med"
+                : "";
           return (
             <button
               key={id}
@@ -85,15 +100,7 @@ export function Controls({
               aria-pressed={active}
               disabled={riskDisabled}
               onClick={() => onRisk(id)}
-              className={
-                active
-                  ? id === "high"
-                    ? "min-w-12 rounded-full bg-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-200 ring-1 ring-red-400/80 disabled:cursor-not-allowed disabled:opacity-50"
-                    : id === "medium"
-                      ? "min-w-12 rounded-full bg-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-200 ring-1 ring-amber-400/80 disabled:cursor-not-allowed disabled:opacity-50"
-                      : "min-w-12 rounded-full bg-[var(--accent)]/15 px-3 py-1.5 text-xs font-semibold text-[var(--accent)] ring-1 ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                  : "min-w-12 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:border-[var(--accent)]/40 hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
-              }
+              className={chipClass(active, activeExtra)}
             >
               {label.zh}
               <span className="ml-1 opacity-60">{label.en}</span>
@@ -102,8 +109,8 @@ export function Controls({
         })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="w-12 text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--brass)]/80 sm:w-14 sm:text-[10px]">
           Cost
         </span>
         {BALL_COSTS.map((c) => {
@@ -115,11 +122,7 @@ export function Controls({
               aria-pressed={active}
               disabled={costDisabled}
               onClick={() => onBallCost(c)}
-              className={
-                active
-                  ? "min-w-9 rounded-full bg-[var(--accent)]/15 px-3 py-1.5 text-xs font-semibold text-[var(--accent)] ring-1 ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                  : "min-w-9 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:border-[var(--accent)]/40 hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
-              }
+              className={chipClass(active)}
             >
               {c}
             </button>
@@ -127,8 +130,8 @@ export function Controls({
         })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="w-12 text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--brass)]/80 sm:w-14 sm:text-[10px]">
           Balls
         </span>
         {BALL_COUNT_PRESETS.map((n) => {
@@ -140,17 +143,13 @@ export function Controls({
               aria-pressed={active}
               disabled={costDisabled}
               onClick={() => onBallCount(n)}
-              className={
-                active
-                  ? "min-w-9 rounded-full bg-[var(--accent)]/15 px-3 py-1.5 text-xs font-semibold text-[var(--accent)] ring-1 ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                  : "min-w-9 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:border-[var(--accent)]/40 hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
-              }
+              className={chipClass(active)}
             >
               {n}
             </button>
           );
         })}
-        <label className="flex items-center gap-1.5">
+        <label className="flex items-center gap-1">
           <span className="sr-only">Custom ball count</span>
           <input
             type="number"
@@ -167,15 +166,15 @@ export function Controls({
             onBlur={(e) => {
               onBallCount(clampBallCount(Number(e.target.value) || DEFAULT_BALL_COUNT));
             }}
-            className="w-14 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5 text-center text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]/60 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-12 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-center text-[11px] text-[var(--foreground)] outline-none focus:border-[var(--brass)]/60 disabled:cursor-not-allowed disabled:opacity-50 sm:w-14 sm:text-xs"
             aria-label={`Custom balls (${MIN_BALL_COUNT}–${MAX_BALL_COUNT})`}
             title={`Custom 1–${MAX_BALL_COUNT}`}
           />
         </label>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="w-12 text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--brass)]/80 sm:w-14 sm:text-[10px]">
           Speed
         </span>
         {SPEEDS.map((s) => {
@@ -186,11 +185,7 @@ export function Controls({
               type="button"
               aria-pressed={active}
               onClick={() => onSpeed(s)}
-              className={
-                active
-                  ? "min-w-9 rounded-full bg-[var(--accent)]/15 px-3 py-1.5 text-xs font-semibold text-[var(--accent)] ring-1 ring-[var(--accent)]"
-                  : "min-w-9 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:border-[var(--accent)]/40 hover:text-[var(--foreground)]"
-              }
+              className={chipClass(active)}
             >
               {s}x
             </button>
@@ -198,12 +193,12 @@ export function Controls({
         })}
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 pt-0.5">
+      <div className="grid grid-cols-2 gap-2 pt-0.5">
         <button
           type="button"
           disabled={buyDisabled}
           onClick={onBuy}
-          className="rounded-xl bg-[var(--accent)] px-4 py-3.5 text-sm font-bold tracking-wide text-[var(--background)] shadow-[0_0_24px_-6px_var(--glow)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          className="rounded-xl bg-gradient-to-b from-[#d8ff6a] to-[var(--accent)] px-3 py-2.5 text-sm font-bold tracking-wide text-[var(--background)] shadow-[0_0_24px_-6px_var(--glow),inset_0_1px_0_rgba(255,255,255,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:py-3"
         >
           {buyLabel}
         </button>
@@ -214,8 +209,8 @@ export function Controls({
           aria-pressed={autoRunning}
           className={
             autoRunning
-              ? "rounded-xl border border-red-500/70 bg-red-500/20 px-4 py-3.5 text-sm font-bold tracking-wide text-red-200"
-              : "rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3.5 text-sm font-bold tracking-wide text-[var(--foreground)] transition hover:border-[var(--accent)]/50 disabled:cursor-not-allowed disabled:opacity-50"
+              ? "rounded-xl border border-red-500/70 bg-red-500/20 px-3 py-2.5 text-sm font-bold tracking-wide text-red-200 sm:py-3"
+              : "rounded-xl border border-[var(--brass)]/30 bg-[var(--surface-2)] px-3 py-2.5 text-sm font-bold tracking-wide text-[var(--foreground)] transition hover:border-[var(--brass)]/55 disabled:cursor-not-allowed disabled:opacity-50 sm:py-3"
           }
         >
           {autoRunning ? "STOP" : "AUTO"}
@@ -224,4 +219,3 @@ export function Controls({
     </div>
   );
 }
-

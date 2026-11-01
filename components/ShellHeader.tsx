@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, type ReactNode } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import type { Asset } from "@/lib/assets";
@@ -13,6 +13,10 @@ export type ShellHeaderProps = {
   /** When set, shows mute / unmute control. */
   muted?: boolean;
   onMuteToggle?: () => void;
+  /** Compact one-screen header. */
+  compact?: boolean;
+  /** Optional trailing slot (e.g. asset toggle). */
+  trailing?: ReactNode;
 };
 
 function formatBalance(n: number): string {
@@ -33,6 +37,8 @@ export function ShellHeader({
   address = null,
   muted,
   onMuteToggle,
+  compact = false,
+  trailing,
 }: ShellHeaderProps) {
   const { connected, disconnecting, disconnect } = useWallet();
   const { setVisible } = useWalletModal();
@@ -55,44 +61,49 @@ export function ShellHeader({
         : "Connect Phantom (demo identity for WLD + SOL)";
 
   return (
-    <header className="flex items-start justify-between gap-3">
-      <div>
-        <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-[var(--muted)]">
+    <header className="flex items-center justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-[9px] font-medium uppercase tracking-[0.24em] text-[var(--brass)]/80">
           Onyx Labs
         </p>
-        <h1 className="bg-gradient-to-r from-[var(--foreground)] via-[var(--foreground)] to-[var(--accent)] bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
+        <h1
+          className={
+            compact
+              ? "bg-gradient-to-r from-[var(--foreground)] via-[#f0e6d2] to-[var(--brass)] bg-clip-text text-xl font-semibold tracking-tight text-transparent sm:text-2xl"
+              : "bg-gradient-to-r from-[var(--foreground)] via-[var(--foreground)] to-[var(--accent)] bg-clip-text text-3xl font-semibold tracking-tight text-transparent"
+          }
+        >
           Plinko
         </h1>
       </div>
 
-      <div className="flex flex-col items-end gap-2">
-        <div className="flex items-center gap-2">
-          {typeof muted === "boolean" && onMuteToggle ? (
-            <button
-              type="button"
-              onClick={onMuteToggle}
-              aria-pressed={muted}
-              aria-label={muted ? "開啟聲音" : "靜音"}
-              title={muted ? "開啟聲音" : "靜音"}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-sm text-[var(--foreground)] transition hover:border-[var(--accent)]/60 hover:shadow-[0_0_16px_-4px_var(--glow)]"
-            >
-              <span aria-hidden>{muted ? "🔇" : "🔊"}</span>
-            </button>
-          ) : null}
-          <div className="rounded-full border border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1.5 shadow-[inset_0_0_0_1px_rgba(200,245,66,0.06)]">
-            <p className="text-sm tabular-nums text-[var(--foreground)]">
-              <span className="text-[var(--muted)]">Bal </span>
-              {formatBalance(balance)}{" "}
-              <span className="font-semibold text-[var(--accent)]">{asset}</span>
-            </p>
-          </div>
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        {trailing}
+        {typeof muted === "boolean" && onMuteToggle ? (
+          <button
+            type="button"
+            onClick={onMuteToggle}
+            aria-pressed={muted}
+            aria-label={muted ? "開啟聲音" : "靜音"}
+            title={muted ? "開啟聲音" : "靜音"}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-sm text-[var(--foreground)] transition hover:border-[var(--brass)]/60"
+          >
+            <span aria-hidden>{muted ? "🔇" : "🔊"}</span>
+          </button>
+        ) : null}
+        <div className="rounded-full border border-[var(--brass)]/25 bg-[var(--surface)]/90 px-2.5 py-1 shadow-[inset_0_0_0_1px_rgba(212,175,118,0.08)]">
+          <p className="text-xs tabular-nums text-[var(--foreground)] sm:text-sm">
+            <span className="text-[var(--muted)]">Bal </span>
+            {formatBalance(balance)}{" "}
+            <span className="font-semibold text-[var(--accent)]">{asset}</span>
+          </p>
         </div>
         <button
           type="button"
           onClick={onClick}
           disabled={disconnecting}
           title={connectTitle}
-          className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)]/60 hover:shadow-[0_0_16px_-4px_var(--glow)] disabled:opacity-50"
+          className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)] transition hover:border-[var(--brass)]/50 disabled:opacity-50 sm:px-3 sm:text-xs"
         >
           {label}
         </button>

@@ -8,7 +8,6 @@ import { Controls } from "@/components/Controls";
 import { DemoBanner } from "@/components/DemoBanner";
 import { JuiceOverlay } from "@/components/JuiceOverlay";
 import { ShellHeader } from "@/components/ShellHeader";
-import { WldHint } from "@/components/WldHint";
 import type { PlinkoBoardHandle } from "@/game/types";
 import type { Asset } from "@/lib/assets";
 import {
@@ -53,7 +52,7 @@ const BUY_DEBOUNCE_MS = 80;
 const PlinkoBoard = dynamic(() => import("@/components/PlinkoBoard"), {
   ssr: false,
   loading: () => (
-    <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--muted)] shadow-[0_0_40px_-12px_rgba(200,245,66,0.2)]">
+    <div className="plinko-board-frame flex h-full min-h-[180px] items-center justify-center rounded-2xl text-xs text-[var(--muted)]">
       Loading board…
     </div>
   ),
@@ -516,7 +515,7 @@ export default function Home() {
   const disabled = !hydrated || !boardReady || cannotAfford;
 
   return (
-    <main className="relative mx-auto flex min-h-screen w-full max-w-md flex-col gap-4 px-4 py-6">
+    <main className="plinko-shell relative mx-auto flex w-full max-w-6xl flex-col gap-2 px-3 py-2 sm:gap-2.5 sm:px-4 sm:py-3 lg:flex-row lg:items-stretch lg:gap-4 lg:px-5 lg:py-4">
       <JuiceOverlay
         tier={juiceTier}
         label={juiceText}
@@ -524,104 +523,147 @@ export default function Home() {
         pulseKey={pulseKey}
       />
 
-      <ShellHeader
-        balance={balance}
-        asset={asset}
-        address={address}
-        muted={muted}
-        onMuteToggle={onMuteToggle}
-      />
-
-      <div className="flex items-center justify-between gap-2">
-        <AssetToggle asset={asset} onChange={onAssetChange} />
-        <p className="text-xs text-[var(--muted)]">
-          {address
-            ? asset === "WLD"
-              ? "WLD demo · same wallet id"
-              : "Wallet demo"
-            : asset === "WLD"
-              ? "Guest WLD demo"
-              : "Guest demo"}
-        </p>
-      </div>
-
-      <DemoBanner />
-
-      {asset === "WLD" ? <WldHint /> : null}
-
-      <div className="relative">
-        <PlinkoBoard
-          key={risk}
-          apiRef={boardRef}
-          onReady={onBoardReady}
-          multipliers={multipliers}
-          binWeights={binWeights}
+      {/* Desktop sidebar / mobile top chrome */}
+      <aside className="flex shrink-0 flex-col gap-2 lg:w-[340px] lg:gap-2.5">
+        <ShellHeader
+          balance={balance}
+          asset={asset}
+          address={address}
+          muted={muted}
+          onMuteToggle={onMuteToggle}
+          compact
+          trailing={
+            <AssetToggle asset={asset} onChange={onAssetChange} compact />
+          }
         />
-        {streak >= 2 ? (
-          <div className="pointer-events-none absolute right-3 top-3 z-20">
-            <p
-              className={
-                streak >= 10
-                  ? "rounded-full border border-yellow-300/60 bg-yellow-400/15 px-3 py-1 text-xs font-bold tracking-wide text-yellow-100 shadow-[0_0_16px_rgba(250,204,21,0.35)]"
-                  : streak >= 5
-                    ? "rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-bold tracking-wide text-amber-100"
-                    : "rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-3 py-1 text-xs font-semibold tracking-wide text-[var(--accent)]"
-              }
-            >
-              連擊 ×{streak}
-            </p>
-          </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <DemoBanner compact />
+          <p className="text-[10px] text-[var(--muted)]">
+            {address
+              ? asset === "WLD"
+                ? "WLD demo · same wallet id"
+                : "Wallet demo"
+              : asset === "WLD"
+                ? "Guest WLD demo"
+                : "Guest demo"}
+          </p>
+        </div>
+
+        {asset === "WLD" ? (
+          <p className="hidden text-[10px] text-[var(--muted)] lg:block">
+            World App connect coming in v1.1 — demo chips only
+          </p>
         ) : null}
-      </div>
 
-      {lastResult ? (
-        <p className="rounded-lg border border-[var(--accent)]/20 bg-[var(--accent)]/5 px-3 py-2 text-center text-sm font-medium text-[var(--accent)]">
-          {lastResult}
-        </p>
-      ) : (
-        <p className="text-center text-xs text-[var(--muted)]">
-          {!boardReady
-            ? "Loading board…"
-            : asset === "WLD"
-              ? "Tap BUY — WLD chips are demo; World connect in v1.1."
-              : "Tap BUY to drop — demo chips only. Multi-click OK."}
-        </p>
-      )}
+        {/* Controls stay under header on desktop; under board on mobile via order */}
+        <div className="hidden lg:block">
+          <Controls
+            ballCost={ballCost}
+            onBallCost={setBallCost}
+            ballCount={ballCount}
+            onBallCount={onBallCountChange}
+            onBuy={() => {
+              void onBuy();
+            }}
+            onAuto={() => {
+              void onAuto();
+            }}
+            onStopAuto={onStopAuto}
+            speed={speed}
+            onSpeed={setSpeed}
+            disabled={disabled}
+            busy={buyDebouncing}
+            autoRunning={autoRunning}
+            ballsInFlight={ballsInFlight}
+            risk={risk}
+            onRisk={onRiskChange}
+          />
+          {cannotAfford && hydrated ? (
+            <p className="mt-1.5 text-center text-[10px] text-[var(--muted)]">
+              Insufficient {asset} for {ballCount}×{ballCost}
+              {committedCost > 0 ? ` (${committedCost} reserved in flight)` : ""}.
+            </p>
+          ) : null}
+          <p className="mt-2 text-center text-[10px] text-[var(--muted)]">
+            <span className="font-semibold text-[var(--brass)]">Demo — not real funds</span>
+            {" · "}Onyx Labs
+          </p>
+        </div>
+      </aside>
 
-      <Controls
-        ballCost={ballCost}
-        onBallCost={setBallCost}
-        ballCount={ballCount}
-        onBallCount={onBallCountChange}
-        onBuy={() => {
-          void onBuy();
-        }}
-        onAuto={() => {
-          void onAuto();
-        }}
-        onStopAuto={onStopAuto}
-        speed={speed}
-        onSpeed={setSpeed}
-        disabled={disabled}
-        busy={buyDebouncing}
-        autoRunning={autoRunning}
-        ballsInFlight={ballsInFlight}
-        risk={risk}
-        onRisk={onRiskChange}
-      />
+      {/* Board column */}
+      <section className="relative flex min-h-0 flex-1 flex-col gap-1.5">
+        <div className="relative min-h-0 flex-1">
+          <PlinkoBoard
+            key={risk}
+            apiRef={boardRef}
+            onReady={onBoardReady}
+            multipliers={multipliers}
+            binWeights={binWeights}
+          />
+          {streak >= 2 ? (
+            <div className="pointer-events-none absolute right-2 top-2 z-20 sm:right-3 sm:top-3">
+              <p
+                className={
+                  streak >= 10
+                    ? "rounded-full border border-yellow-300/60 bg-yellow-400/15 px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-yellow-100 shadow-[0_0_16px_rgba(250,204,21,0.35)] sm:px-3 sm:py-1 sm:text-xs"
+                    : streak >= 5
+                      ? "rounded-full border border-amber-300/50 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-amber-100 sm:px-3 sm:py-1 sm:text-xs"
+                      : "rounded-full border border-[var(--brass)]/45 bg-[var(--brass)]/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--brass)] sm:px-3 sm:py-1 sm:text-xs"
+                }
+              >
+                連擊 ×{streak}
+              </p>
+            </div>
+          ) : null}
+        </div>
 
-      {cannotAfford && hydrated ? (
-        <p className="text-center text-xs text-[var(--muted)]">
-          Insufficient {asset} for {ballCount}×{ballCost}
-          {committedCost > 0 ? ` (${committedCost} reserved in flight)` : ""}.
-        </p>
-      ) : null}
+        {lastResult ? (
+          <p className="truncate rounded-lg border border-[var(--brass)]/20 bg-[var(--brass)]/5 px-2.5 py-1 text-center text-[11px] font-medium text-[var(--accent)] sm:text-xs">
+            {lastResult}
+          </p>
+        ) : (
+          <p className="truncate text-center text-[10px] text-[var(--muted)] sm:text-[11px]">
+            {!boardReady
+              ? "Loading board…"
+              : asset === "WLD"
+                ? "Tap BUY — WLD chips are demo; World connect in v1.1."
+                : "Tap BUY to drop — demo chips only. Multi-click OK."}
+          </p>
+        )}
 
-      <footer className="mt-auto border-t border-[var(--border)] pt-4 text-center text-xs text-[var(--muted)]">
-        <p className="font-semibold text-[var(--accent)]">Demo — not real funds</p>
-        <p className="mt-1">Onyx Labs · plinko.onyxlab.dev</p>
-        <p className="mt-1">No wallet signing or on-chain transfers in v1.</p>
-      </footer>
+        {/* Mobile controls under board */}
+        <div className="shrink-0 lg:hidden">
+          <Controls
+            ballCost={ballCost}
+            onBallCost={setBallCost}
+            ballCount={ballCount}
+            onBallCount={onBallCountChange}
+            onBuy={() => {
+              void onBuy();
+            }}
+            onAuto={() => {
+              void onAuto();
+            }}
+            onStopAuto={onStopAuto}
+            speed={speed}
+            onSpeed={setSpeed}
+            disabled={disabled}
+            busy={buyDebouncing}
+            autoRunning={autoRunning}
+            ballsInFlight={ballsInFlight}
+            risk={risk}
+            onRisk={onRiskChange}
+          />
+          {cannotAfford && hydrated ? (
+            <p className="mt-1 text-center text-[10px] text-[var(--muted)]">
+              Insufficient {asset} for {ballCount}×{ballCost}
+              {committedCost > 0 ? ` (${committedCost} reserved in flight)` : ""}.
+            </p>
+          ) : null}
+        </div>
+      </section>
     </main>
   );
 }
