@@ -4,7 +4,7 @@ export function DemoBanner({ compact = false }: { compact?: boolean }) {
     return (
       <p
         role="status"
-        className="inline-flex items-center rounded-full border border-[var(--brass)]/35 bg-[linear-gradient(90deg,rgba(212,175,118,0.14),rgba(200,245,66,0.1),rgba(212,175,118,0.14))] px-2.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--brass)] shadow-[inset_0_0_0_1px_rgba(212,175,118,0.08)]"
+        className="inline-flex items-center rounded-full border-2 border-white/90 bg-gradient-to-r from-[#ffe566] via-[#fff3a8] to-[#7dff6a] px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-[#3a2a00] shadow-md"
       >
         Demo — not real funds
       </p>
@@ -14,7 +14,7 @@ export function DemoBanner({ compact = false }: { compact?: boolean }) {
   return (
     <p
       role="status"
-      className="rounded-xl border border-[var(--accent)]/25 bg-[linear-gradient(90deg,rgba(200,245,66,0.12),rgba(255,183,197,0.08),rgba(200,245,66,0.12))] px-3 py-2.5 text-center text-sm font-semibold tracking-wide text-[var(--accent)] shadow-[inset_0_0_0_1px_rgba(200,245,66,0.08)]"
+      className="rounded-2xl border-2 border-white/90 bg-gradient-to-r from-[#ffe566] via-[#fff3a8] to-[#7dff6a] px-3 py-2.5 text-center text-sm font-extrabold tracking-wide text-[#3a2a00] shadow-md"
     >
       Demo — not real funds
     </p>

@@ -52,7 +52,7 @@ const BUY_DEBOUNCE_MS = 80;
 const PlinkoBoard = dynamic(() => import("@/components/PlinkoBoard"), {
   ssr: false,
   loading: () => (
-    <div className="plinko-board-frame flex h-full min-h-[180px] items-center justify-center rounded-2xl text-xs text-[var(--muted)]">
+    <div className="plinko-board-frame flex h-full min-h-[180px] items-center justify-center rounded-2xl text-xs font-bold text-white/80">
       Loading board…
     </div>
   ),
@@ -586,7 +586,7 @@ export default function Home() {
             </p>
           ) : null}
           <p className="mt-2 text-center text-[10px] text-[var(--muted)]">
-            <span className="font-semibold text-[var(--brass)]">Demo — not real funds</span>
+            <span className="font-extrabold text-[#5a3a00]">Demo — not real funds</span>
             {" · "}Onyx Labs
           </p>
         </div>
@@ -607,10 +607,10 @@ export default function Home() {
               <p
                 className={
                   streak >= 10
-                    ? "rounded-full border border-yellow-300/60 bg-yellow-400/15 px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-yellow-100 shadow-[0_0_16px_rgba(250,204,21,0.35)] sm:px-3 sm:py-1 sm:text-xs"
+                    ? "rounded-full border-2 border-white bg-gradient-to-b from-[#ffe566] to-[#ffb020] px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-[#5a3a00] shadow-md sm:px-3 sm:py-1 sm:text-xs"
                     : streak >= 5
-                      ? "rounded-full border border-amber-300/50 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-amber-100 sm:px-3 sm:py-1 sm:text-xs"
-                      : "rounded-full border border-[var(--brass)]/45 bg-[var(--brass)]/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--brass)] sm:px-3 sm:py-1 sm:text-xs"
+                      ? "rounded-full border-2 border-white bg-gradient-to-b from-[#ff8fd6] to-[#ff4fd8] px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-white shadow-md sm:px-3 sm:py-1 sm:text-xs"
+                      : "rounded-full border-2 border-white bg-gradient-to-b from-[#9dff7a] to-[#2fd45a] px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-white shadow-md sm:px-3 sm:py-1 sm:text-xs"
                 }
               >
                 連擊 ×{streak}

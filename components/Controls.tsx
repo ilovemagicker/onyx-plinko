@@ -81,7 +81,7 @@ export function Controls({
   return (
     <div className="plinko-panel flex flex-col gap-2 rounded-2xl p-2.5 sm:gap-2.5 sm:p-3">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="w-12 text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--brass)]/80 sm:w-14 sm:text-[10px]">
+        <span className="w-12 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#2a6bc4] sm:w-14 sm:text-[10px]">
           Risk
         </span>
         {RISK_MODE_IDS.map((id) => {
@@ -110,7 +110,7 @@ export function Controls({
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="w-12 text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--brass)]/80 sm:w-14 sm:text-[10px]">
+        <span className="w-12 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#2a6bc4] sm:w-14 sm:text-[10px]">
           Cost
         </span>
         {BALL_COSTS.map((c) => {
@@ -131,7 +131,7 @@ export function Controls({
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="w-12 text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--brass)]/80 sm:w-14 sm:text-[10px]">
+        <span className="w-12 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#2a6bc4] sm:w-14 sm:text-[10px]">
           Balls
         </span>
         {BALL_COUNT_PRESETS.map((n) => {
@@ -174,7 +174,7 @@ export function Controls({
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="w-12 text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--brass)]/80 sm:w-14 sm:text-[10px]">
+        <span className="w-12 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#2a6bc4] sm:w-14 sm:text-[10px]">
           Speed
         </span>
         {SPEEDS.map((s) => {
@@ -198,7 +198,7 @@ export function Controls({
           type="button"
           disabled={buyDisabled}
           onClick={onBuy}
-          className="rounded-xl bg-gradient-to-b from-[#d8ff6a] to-[var(--accent)] px-3 py-2.5 text-sm font-bold tracking-wide text-[var(--background)] shadow-[0_0_24px_-6px_var(--glow),inset_0_1px_0_rgba(255,255,255,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:py-3"
+          className="rounded-xl border-2 border-white/90 bg-gradient-to-b from-[#9dff7a] to-[#2fd45a] px-3 py-2.5 text-sm font-extrabold tracking-wide text-white shadow-[0_6px_18px_-6px_rgba(40,180,80,0.65),inset_0_1px_0_rgba(255,255,255,0.45)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:py-3"
         >
           {buyLabel}
         </button>
@@ -210,7 +210,7 @@ export function Controls({
           className={
             autoRunning
               ? "rounded-xl border border-red-500/70 bg-red-500/20 px-3 py-2.5 text-sm font-bold tracking-wide text-red-200 sm:py-3"
-              : "rounded-xl border border-[var(--brass)]/30 bg-[var(--surface-2)] px-3 py-2.5 text-sm font-bold tracking-wide text-[var(--foreground)] transition hover:border-[var(--brass)]/55 disabled:cursor-not-allowed disabled:opacity-50 sm:py-3"
+              : "rounded-xl border-2 border-white/90 bg-gradient-to-b from-[#7ad4ff] to-[#3a9fff] px-3 py-2.5 text-sm font-extrabold tracking-wide text-white shadow-md transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:py-3"
           }
         >
           {autoRunning ? "STOP" : "AUTO"}
