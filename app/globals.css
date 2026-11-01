@@ -1,21 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  /* Lacquer cabinet + brass / Onyx lime */
-  --background: #07060a;
-  --foreground: #f7f3ea;
-  --muted: #9a9388;
-  --accent: #c8f542;
-  --accent-dim: rgba(200, 245, 66, 0.12);
-  --brass: #d4af76;
-  --brass-dim: rgba(212, 175, 118, 0.22);
-  --surface: #121018;
-  --surface-2: #1a1622;
-  --surface-glass: rgba(22, 18, 28, 0.78);
-  --border: #2e2838;
-  --sakura: #ffb7c5;
-  --glow: rgba(200, 245, 66, 0.32);
-  --cabinet: #1a1210;
+  /* Candy arcade — bright casual casino (Onyx Labs, not a third-party brand) */
+  --background: #5ec8ff;
+  --foreground: #1a2550;
+  --muted: #3d5a8a;
+  --accent: #ffe566;
+  --accent-hot: #ff4fd8;
+  --accent-lime: #7dff6a;
+  --accent-dim: rgba(255, 229, 102, 0.28);
+  --brass: #ffcc33;
+  --brass-dim: rgba(255, 204, 51, 0.35);
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-2: rgba(255, 255, 255, 0.72);
+  --surface-glass: rgba(255, 255, 255, 0.78);
+  --border: rgba(40, 80, 160, 0.22);
+  --sakura: #ff8fd6;
+  --glow: rgba(255, 229, 102, 0.55);
+  --cabinet: #2a3348;
+  --sky-deep: #3eb6ff;
 }
 
 html,
@@ -32,14 +35,17 @@ body {
   min-height: 100%;
   min-height: 100dvh;
   color: var(--foreground);
-  background-color: var(--background);
+  background-color: var(--sky-deep);
   background-image:
-    radial-gradient(ellipse 70% 45% at 50% -8%, rgba(212, 175, 118, 0.14), transparent 55%),
-    radial-gradient(ellipse 50% 35% at 95% 15%, rgba(200, 245, 66, 0.06), transparent 50%),
-    radial-gradient(ellipse 45% 30% at 5% 70%, rgba(255, 183, 197, 0.07), transparent 50%),
-    linear-gradient(180deg, #100e14 0%, #07060a 100%);
+    radial-gradient(ellipse 90% 55% at 50% -5%, #b8ecff 0%, transparent 55%),
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.55) 0 42px, transparent 44px),
+    radial-gradient(circle at 78% 12%, rgba(255, 255, 255, 0.5) 0 56px, transparent 58px),
+    radial-gradient(circle at 88% 42%, rgba(255, 255, 255, 0.35) 0 36px, transparent 38px),
+    radial-gradient(circle at 18% 72%, rgba(255, 255, 255, 0.4) 0 48px, transparent 50px),
+    linear-gradient(180deg, #7ad4ff 0%, #4eb8ff 42%, #6ecfff 100%);
   background-attachment: fixed;
   font-family:
+    ui-rounded,
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -52,17 +58,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Soft film grain */
+/* Soft sparkles */
 body::before {
   content: "";
   pointer-events: none;
   position: fixed;
   inset: 0;
   z-index: 50;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 180px 180px;
+  opacity: 0.45;
+  background-image:
+    radial-gradient(circle at 20% 30%, #fff 0 1.2px, transparent 1.6px),
+    radial-gradient(circle at 70% 22%, #fff 0 1px, transparent 1.4px),
+    radial-gradient(circle at 40% 80%, #ffe566 0 1.2px, transparent 1.6px),
+    radial-gradient(circle at 85% 70%, #fff 0 1px, transparent 1.4px);
+  background-size: 180px 180px, 220px 220px, 160px 160px, 200px 200px;
 }
 
 * {
@@ -73,9 +82,7 @@ body::before {
   z-index: 60 !important;
 }
 
-/* One-screen shell — no page scroll.
-   Prefer svh (stable) so mobile URL-bar show/hide does not thrash board size.
-   Fall back to dvh then vh. */
+/* One-screen shell — prefer svh (stable) */
 .plinko-shell {
   height: 100vh;
   height: 100dvh;
@@ -86,7 +93,6 @@ body::before {
   overflow: hidden;
 }
 
-/* Phaser canvas must never drive layout */
 #plinko-root,
 #plinko-root canvas {
   display: block;
@@ -97,82 +103,86 @@ body::before {
 }
 
 .plinko-panel {
-  border: 1px solid color-mix(in srgb, var(--brass) 28%, var(--border));
+  border: 2px solid rgba(255, 255, 255, 0.85);
   background:
-    linear-gradient(165deg, rgba(212, 175, 118, 0.07), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%),
-    var(--surface-glass);
+    linear-gradient(165deg, rgba(255, 255, 255, 0.95), rgba(230, 246, 255, 0.88));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(0, 0, 0, 0.25),
-    0 18px 40px -24px rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(10px);
+    0 10px 28px -12px rgba(20, 60, 120, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
 }
 
 .plinko-chip {
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, #221e2a 0%, #16131c 100%);
+  border: 2px solid rgba(80, 120, 190, 0.2);
+  background: linear-gradient(180deg, #ffffff 0%, #e8f6ff 100%);
   color: var(--muted);
-  transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
 
 .plinko-chip:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--brass) 45%, var(--border));
+  border-color: rgba(255, 79, 216, 0.45);
   color: var(--foreground);
+  transform: translateY(-1px);
 }
 
 .plinko-chip-active {
-  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
-  background: linear-gradient(180deg, rgba(200, 245, 66, 0.18), rgba(200, 245, 66, 0.06));
-  color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(200, 245, 66, 0.18), 0 0 18px -8px var(--glow);
+  border-color: #ffcc33;
+  background: linear-gradient(180deg, #ffe566 0%, #ffc933 100%);
+  color: #5a3a00;
+  box-shadow: 0 4px 14px -4px rgba(255, 180, 0, 0.65);
 }
 
 .plinko-chip-risk-high {
-  border-color: rgba(248, 113, 113, 0.7);
-  background: linear-gradient(180deg, rgba(239, 68, 68, 0.22), rgba(127, 29, 29, 0.18));
-  color: #fecaca;
-  box-shadow: 0 0 16px -8px rgba(239, 68, 68, 0.55);
+  border-color: #ff6b9a;
+  background: linear-gradient(180deg, #ff8eb8 0%, #ff4f8a 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px -4px rgba(255, 79, 138, 0.55);
 }
 
 .plinko-chip-risk-med {
-  border-color: rgba(251, 191, 36, 0.65);
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.2), rgba(120, 53, 15, 0.16));
-  color: #fde68a;
+  border-color: #ffb020;
+  background: linear-gradient(180deg, #ffd56a 0%, #ffb020 100%);
+  color: #5a3a00;
 }
 
 .plinko-board-frame {
-  border: 1px solid color-mix(in srgb, var(--brass) 35%, var(--border));
+  border: 3px solid rgba(255, 255, 255, 0.92);
   background:
-    radial-gradient(ellipse 80% 40% at 50% 0%, rgba(212, 175, 118, 0.12), transparent 55%),
-    radial-gradient(ellipse 60% 50% at 50% 80%, rgba(200, 245, 66, 0.04), transparent 60%),
-    linear-gradient(180deg, #1c1418 0%, #0c0a10 100%);
+    radial-gradient(ellipse 80% 40% at 50% 0%, rgba(255, 255, 255, 0.35), transparent 55%),
+    linear-gradient(180deg, #3a4560 0%, #252c40 100%);
   box-shadow:
-    inset 0 1px 0 rgba(212, 175, 118, 0.22),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(0, 0, 0, 0.35),
-    0 22px 50px -28px rgba(0, 0, 0, 0.85),
-    0 0 60px -28px rgba(212, 175, 118, 0.2);
+    0 16px 40px -18px rgba(20, 60, 120, 0.55),
+    inset 0 2px 0 rgba(255, 255, 255, 0.35),
+    0 0 0 4px rgba(255, 180, 40, 0.35);
+}
+
+.plinko-title {
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  background: linear-gradient(180deg, #7dff6a 0%, #2fe0ff 45%, #ffe566 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(30, 80, 160, 0.35)) drop-shadow(0 4px 10px rgba(255, 229, 102, 0.35));
 }
 
 /* ---- Plinko juice ---- */
 @keyframes plinko-flash-nice {
-  0% { background: rgba(200, 245, 66, 0.18); opacity: 1; }
-  100% { background: rgba(200, 245, 66, 0); opacity: 0; }
+  0% { background: rgba(125, 255, 106, 0.28); opacity: 1; }
+  100% { background: rgba(125, 255, 106, 0); opacity: 0; }
 }
 @keyframes plinko-flash-big {
-  0% { background: radial-gradient(ellipse at 50% 40%, rgba(251, 191, 36, 0.45), transparent 60%); opacity: 1; }
-  100% { background: radial-gradient(ellipse at 50% 40%, rgba(251, 191, 36, 0), transparent 60%); opacity: 0; }
+  0% { background: radial-gradient(ellipse at 50% 40%, rgba(255, 229, 102, 0.55), transparent 60%); opacity: 1; }
+  100% { background: radial-gradient(ellipse at 50% 40%, rgba(255, 229, 102, 0), transparent 60%); opacity: 0; }
 }
 @keyframes plinko-flash-jackpot {
-  0% { background: radial-gradient(ellipse at 50% 35%, rgba(250, 204, 21, 0.55), rgba(255, 183, 197, 0.25) 45%, transparent 70%); opacity: 1; }
-  40% { background: radial-gradient(ellipse at 50% 35%, rgba(250, 204, 21, 0.35), rgba(255, 183, 197, 0.15) 45%, transparent 70%); opacity: 1; }
-  100% { background: radial-gradient(ellipse at 50% 35%, rgba(250, 204, 21, 0), transparent 70%); opacity: 0; }
+  0% { background: radial-gradient(ellipse at 50% 35%, rgba(255, 229, 102, 0.65), rgba(255, 79, 216, 0.3) 45%, transparent 70%); opacity: 1; }
+  40% { background: radial-gradient(ellipse at 50% 35%, rgba(255, 229, 102, 0.4), rgba(255, 79, 216, 0.18) 45%, transparent 70%); opacity: 1; }
+  100% { background: radial-gradient(ellipse at 50% 35%, rgba(255, 229, 102, 0), transparent 70%); opacity: 0; }
 }
 @keyframes plinko-toast {
   0% { transform: translateY(12px) scale(0.85); opacity: 0; }
-  18% { transform: translateY(0) scale(1.05); opacity: 1; }
+  18% { transform: translateY(0) scale(1.08); opacity: 1; }
   70% { transform: translateY(0) scale(1); opacity: 1; }
   100% { transform: translateY(-8px) scale(0.98); opacity: 0; }
 }

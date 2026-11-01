@@ -13,8 +13,8 @@ export function AssetToggle({ asset, onChange, compact = false }: AssetTogglePro
     <div
       className={
         compact
-          ? "inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]"
-          : "inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]"
+          ? "inline-flex rounded-full border-2 border-white/90 bg-white/80 p-0.5 shadow-md"
+          : "inline-flex rounded-full border-2 border-white/90 bg-white/80 p-1 shadow-md"
       }
       role="group"
       aria-label="Asset"
@@ -30,11 +30,11 @@ export function AssetToggle({ asset, onChange, compact = false }: AssetTogglePro
             className={
               active
                 ? compact
-                  ? "rounded-full bg-[var(--accent)] px-2.5 py-1 text-[10px] font-bold text-[var(--background)] shadow-[0_0_14px_-4px_var(--glow)]"
-                  : "rounded-full bg-[var(--accent)] px-3.5 py-1.5 text-xs font-bold text-[var(--background)] shadow-[0_0_16px_-4px_var(--glow)]"
+                  ? "rounded-full bg-gradient-to-b from-[#ffe566] to-[#ffc933] px-2.5 py-1 text-[10px] font-extrabold text-[#5a3a00] shadow"
+                  : "rounded-full bg-gradient-to-b from-[#ffe566] to-[#ffc933] px-3.5 py-1.5 text-xs font-extrabold text-[#5a3a00] shadow"
                 : compact
-                  ? "rounded-full px-2.5 py-1 text-[10px] font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
-                  : "rounded-full px-3.5 py-1.5 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
+                  ? "rounded-full px-2.5 py-1 text-[10px] font-bold text-[#3d5a8a] transition hover:text-[#1a2550]"
+                  : "rounded-full px-3.5 py-1.5 text-xs font-bold text-[#3d5a8a] transition hover:text-[#1a2550]"
             }
           >
             {a}

@@ -138,11 +138,15 @@ export default function PlinkoBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const perspective =
+    "translate(-50%, -48%) perspective(900px) rotateX(12deg)" as const;
   const stageStyle: CSSProperties =
     stagePx.w > 0 && stagePx.h > 0
       ? {
           width: `${stagePx.w}px`,
           height: `${stagePx.h}px`,
+          transform: perspective,
+          transformOrigin: "center center",
         }
       : {
           // Pre-measure fallback: still aspect-locked, won't expand parent
@@ -151,6 +155,8 @@ export default function PlinkoBoard({
           aspectRatio: `${BOARD_LOGIC_W} / ${BOARD_LOGIC_H}`,
           maxHeight: "100%",
           height: "auto",
+          transform: perspective,
+          transformOrigin: "center center",
         };
 
   return (
@@ -164,23 +170,15 @@ export default function PlinkoBoard({
       {/* Soft lacquer wash behind canvas */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_8%,rgba(212,175,118,0.16),transparent_42%),radial-gradient(ellipse_at_18%_30%,rgba(255,183,197,0.08),transparent_40%),radial-gradient(ellipse_at_85%_40%,rgba(200,245,66,0.05),transparent_38%),linear-gradient(180deg,#1a1216_0%,#0a080e_78%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,255,255,0.25),transparent_40%),linear-gradient(180deg,#4a5568_0%,#2a3144_55%,#1c2233_100%)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[var(--brass)]/50 to-transparent"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-y-3 left-0 w-px bg-gradient-to-b from-transparent via-[var(--brass)]/25 to-transparent"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-y-3 right-0 w-px bg-gradient-to-b from-transparent via-[var(--brass)]/25 to-transparent"
+        className="pointer-events-none absolute inset-x-6 top-0 h-1 rounded-b-full bg-gradient-to-r from-[#ff8fd6] via-[#ffe566] to-[#7dff6a] opacity-90"
       />
 
       <div
-        className="plinko-board-stage absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden"
+        className="plinko-board-stage absolute left-1/2 top-1/2 overflow-hidden rounded-xl shadow-[0_20px_40px_-16px_rgba(0,0,0,0.55)]"
         style={stageStyle}
       >
         <div

@@ -67,14 +67,16 @@ function formatMult(m: number): string {
 }
 
 function binColor(mult: number): number {
-  if (mult >= 100) return 0xfbbf24; // gold jackpot
-  if (mult >= 20) return 0xdc2626; // deep ruby
-  if (mult >= 8) return 0xf43f5e; // rose
-  if (mult >= 4) return 0xfb923c; // amber
-  if (mult >= 2) return 0xfacc15; // warm yellow
-  if (mult >= 1) return 0x2dd4bf; // teal
-  return 0x4b5563; // muted steel
+  if (mult >= 100) return 0xffd54a; // gold
+  if (mult >= 20) return 0xff4f8a; // hot pink
+  if (mult >= 8) return 0xff7a3d; // orange
+  if (mult >= 4) return 0xffc933; // amber
+  if (mult >= 2) return 0x7dff6a; // lime
+  if (mult >= 1) return 0x3ad0ff; // cyan
+  return 0x8aa0c8; // soft steel
 }
+
+const PEG_PALETTE = [0xffd54a, 0xff8fd6, 0x5ad0ff, 0x7dff6a, 0xffb020];
 
 export type CreatePlinkoGameOptions = {
   multipliers?: number[];
@@ -155,7 +157,7 @@ export async function createPlinkoGame(
       matter.world.setGravity(0, 1.35);
       this.applySpeed(speedScale);
 
-      this.drawCabinetBackdrop();
+      this.drawArcadeBackdrop();
       this.createWalls();
       this.createPegs();
       this.createBins();
@@ -185,41 +187,38 @@ export async function createPlinkoGame(
       engine.timing.timeScale = speed;
     }
 
-    private drawCabinetBackdrop() {
+    private drawArcadeBackdrop() {
       const g = this.add.graphics();
-      // L0 — lacquer cabinet gradient (warm dark wood / ink)
-      g.fillGradientStyle(0x22181c, 0x22181c, 0x141018, 0x141018, 1);
-      g.fillRect(0, 0, width, height / 2);
-      g.fillGradientStyle(0x141018, 0x141018, 0x09070c, 0x09070c, 1);
-      g.fillRect(0, height / 2 - 1, width, height / 2 + 1);
+      // Sky wash behind board plate
+      g.fillGradientStyle(0x6ecfff, 0x6ecfff, 0x3eb6ff, 0x3eb6ff, 1);
+      g.fillRect(0, 0, width, height);
 
-      // L1 — brass / sakura ambient (restrained)
-      g.fillStyle(0xd4af76, 0.1);
-      g.fillCircle(width * 0.5, height * 0.08, 90);
-      g.fillStyle(0xffb7c5, 0.08);
-      g.fillCircle(width * 0.16, height * 0.22, 70);
-      g.fillStyle(0xc8f542, 0.035);
-      g.fillCircle(width * 0.84, height * 0.42, 80);
+      // Soft clouds
+      g.fillStyle(0xffffff, 0.55);
+      g.fillCircle(width * 0.18, 36, 28);
+      g.fillCircle(width * 0.28, 40, 22);
+      g.fillCircle(width * 0.78, 48, 30);
+      g.fillCircle(width * 0.88, 44, 20);
+      g.fillStyle(0xffffff, 0.35);
+      g.fillCircle(width * 0.5, height - 30, 40);
 
-      // L2 — subtle wood-grain lines
-      g.lineStyle(1, 0xd4af76, 0.035);
-      for (let y = 28; y < height - 110; y += 22) {
-        g.lineBetween(18, y, width - 18, y);
+      // Dark playfield plate (charcoal) — reads as arcade bed
+      g.fillStyle(0x2e3548, 1);
+      g.fillRoundedRect(16, 28, width - 32, height - 120, 18);
+      g.fillStyle(0x3a4258, 0.55);
+      g.fillRoundedRect(22, 34, width - 44, height - 136, 14);
+
+      // Sparkles
+      g.fillStyle(0xffffff, 0.7);
+      for (const [sx, sy] of [
+        [40, 70],
+        [320, 90],
+        [60, 200],
+        [300, 240],
+        [180, 120],
+      ] as Array<[number, number]>) {
+        g.fillCircle(sx, sy, 1.6);
       }
-
-      // L3 — side cabinet rails (visual frame)
-      g.fillStyle(0xd4af76, 0.08);
-      g.fillRect(0, 0, 6, height);
-      g.fillRect(width - 6, 0, 6, height);
-      g.lineStyle(1, 0xd4af76, 0.22);
-      g.lineBetween(7, 12, 7, height - 108);
-      g.lineBetween(width - 7, 12, width - 7, height - 108);
-
-      // L4 — vignette
-      g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.3, 0.3, 0, 0);
-      g.fillRect(0, 0, width, 40);
-      g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.28, 0.28);
-      g.fillRect(0, height - 44, width, 44);
 
       g.setDepth(-10);
     }
@@ -291,34 +290,58 @@ export async function createPlinkoGame(
         10,
       );
 
-      // Visual rails: brass glow → chrome edge → inner highlight (marble cabinet)
+      // Candy chevron side rails (arcade runway)
       const g = this.add.graphics();
-      g.lineStyle(12, 0xd4af76, 0.14);
-      g.lineBetween(left[0].x, left[0].y, left[1].x, left[1].y);
-      g.lineBetween(right[0].x, right[0].y, right[1].x, right[1].y);
-      g.lineStyle(3.5, 0xd4af76, 0.72);
-      g.lineBetween(left[0].x, left[0].y, left[1].x, left[1].y);
-      g.lineBetween(right[0].x, right[0].y, right[1].x, right[1].y);
-      g.lineStyle(1.4, 0xfff6e0, 0.45);
-      g.lineBetween(left[0].x + 1.2, left[0].y, left[1].x + 1.2, left[1].y);
-      g.lineBetween(right[0].x - 1.2, right[0].y, right[1].x - 1.2, right[1].y);
+      const paintRail = (
+        a: { x: number; y: number },
+        b: { x: number; y: number },
+        outward: number,
+      ) => {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = (-dy / len) * outward;
+        const ny = (dx / len) * outward;
+        // Outer orange glow band
+        g.fillStyle(0xff9a3c, 0.95);
+        g.beginPath();
+        g.moveTo(a.x, a.y);
+        g.lineTo(b.x, b.y);
+        g.lineTo(b.x + nx, b.y + ny);
+        g.lineTo(a.x + nx, a.y + ny);
+        g.closePath();
+        g.fillPath();
+        // Yellow chevron stripes
+        g.lineStyle(3, 0xffe566, 0.9);
+        const steps = 10;
+        for (let i = 0; i < steps; i++) {
+          const t0 = i / steps;
+          const t1 = Math.min(1, (i + 0.45) / steps);
+          const x0 = a.x + dx * t0 + nx * 0.25;
+          const y0 = a.y + dy * t0 + ny * 0.25;
+          const x1 = a.x + dx * t1 + nx * 0.75;
+          const y1 = a.y + dy * t1 + ny * 0.75;
+          g.lineBetween(x0, y0, x1, y1);
+        }
+      };
+      paintRail(left[0], left[1], -16);
+      paintRail(right[0], right[1], 16);
 
-      // Drop mouth / funnel crown
-      const mouthPad = 10;
+      // Drop mouth
+      const mouthPad = 12;
       const mx0 = left[0].x - mouthPad;
       const mx1 = right[0].x + mouthPad;
-      const my = left[0].y - 6;
-      g.fillStyle(0x0a080c, 0.55);
-      g.fillRoundedRect(mx0, my - 10, mx1 - mx0, 16, 6);
-      g.lineStyle(1.5, 0xd4af76, 0.65);
-      g.strokeRoundedRect(mx0, my - 10, mx1 - mx0, 16, 6);
-      g.lineStyle(1, 0xc8f542, 0.35);
-      g.lineBetween(left[0].x, left[0].y, right[0].x, right[0].y);
+      const my = left[0].y - 8;
+      g.fillStyle(0xffe566, 1);
+      g.fillRoundedRect(mx0, my - 10, mx1 - mx0, 18, 8);
+      g.lineStyle(2, 0xffffff, 0.9);
+      g.strokeRoundedRect(mx0, my - 10, mx1 - mx0, 18, 8);
+      g.fillStyle(0x2e3548, 0.85);
+      g.fillRoundedRect(mx0 + 6, my - 4, mx1 - mx0 - 12, 10, 5);
 
-      // Bottom brass brackets into prize shelf
-      g.fillStyle(0xd4af76, 0.28);
-      g.fillRoundedRect(left[1].x - 6, left[1].y - 2, 12, 7, 2);
-      g.fillRoundedRect(right[1].x - 6, right[1].y - 2, 12, 7, 2);
+      g.fillStyle(0xffe566, 0.9);
+      g.fillRoundedRect(left[1].x - 7, left[1].y - 2, 14, 8, 3);
+      g.fillRoundedRect(right[1].x - 7, right[1].y - 2, 14, 8, 3);
       g.setDepth(-1);
     }
 
@@ -344,23 +367,57 @@ export async function createPlinkoGame(
       this.tweens.killTweensOf(best.container);
       this.tweens.killTweensOf(best.halo);
       best.container.setScale(1);
-      best.halo.setAlpha(0.14);
+      best.halo.setAlpha(0.35);
       this.tweens.add({
         targets: best.container,
-        scale: 1.25,
-        duration: 40,
+        scale: 1.35,
+        duration: 50,
         yoyo: true,
-        ease: "Quad.easeOut",
+        ease: "Back.easeOut",
       });
       this.tweens.add({
         targets: best.halo,
-        alpha: 0.32,
-        duration: 40,
+        alpha: 0.7,
+        duration: 50,
         yoyo: true,
         onComplete: () => {
-          if (best?.halo.active) best.halo.setAlpha(0.14);
+          if (best?.halo.active) best.halo.setAlpha(0.35);
         },
       });
+
+      // Floating +score pops (arcade juice)
+      const pop = this.add
+        .text(x, y - 8, "+1", {
+          fontSize: "12px",
+          color: "#ffe566",
+          fontStyle: "bold",
+          fontFamily: "ui-rounded, system-ui, sans-serif",
+        })
+        .setOrigin(0.5)
+        .setDepth(30)
+        .setStroke("#5a3a00", 3);
+      this.tweens.add({
+        targets: pop,
+        y: y - 36,
+        alpha: 0,
+        scale: 1.25,
+        duration: 420,
+        ease: "Quad.easeOut",
+        onComplete: () => pop.destroy(),
+      });
+      // Tiny spark burst
+      for (let i = 0; i < 5; i++) {
+        const ang = (Math.PI * 2 * i) / 5;
+        const spark = this.add.circle(x, y, 2, 0xffffff, 0.95).setDepth(29);
+        this.tweens.add({
+          targets: spark,
+          x: x + Math.cos(ang) * 14,
+          y: y + Math.sin(ang) * 14,
+          alpha: 0,
+          duration: 220,
+          onComplete: () => spark.destroy(),
+        });
+      }
     }
 
     private createPegs() {
@@ -396,9 +453,9 @@ export async function createPlinkoGame(
 
       this.createSlantGuides(guides.left, guides.right);
 
-      // Soft glass plate behind peg pyramid
+      // Soft plate behind pegs
       const fill = this.add.graphics();
-      fill.fillStyle(0xd4af76, 0.035);
+      fill.fillStyle(0xffffff, 0.04);
       fill.fillTriangle(
         guides.left[0].x,
         guides.left[0].y,
@@ -406,15 +463,6 @@ export async function createPlinkoGame(
         guides.right[0].y,
         width / 2,
         bottomY + 40,
-      );
-      fill.fillStyle(0xffffff, 0.015);
-      fill.fillTriangle(
-        guides.left[1].x,
-        guides.left[1].y,
-        guides.right[1].x,
-        guides.right[1].y,
-        width / 2,
-        topY - 20,
       );
       fill.setDepth(-5);
 
@@ -429,14 +477,17 @@ export async function createPlinkoGame(
             mask: this.ballCategory,
           },
         });
-        // Metal / glass peg: soft brass halo + dark metal + polished core + specular
-        const halo = this.add.circle(0, 0, pegRadius + 4.5, 0xd4af76, 0.16);
-        const ring = this.add.circle(0, 0, pegRadius + 1.15, 0x2a2420, 0.92);
-        ring.setStrokeStyle(1.35, 0xe8c999, 0.95);
-        const core = this.add.circle(0, 0, Math.max(1.5, pegRadius - 0.55), 0xf3e7d0, 1);
-        const glass = this.add.circle(0, -0.2, Math.max(1.1, pegRadius - 1.5), 0xffffff, 0.18);
-        const highlight = this.add.circle(0, -1.5, Math.max(0.7, pegRadius - 2.5), 0xffffff, 0.7);
-        const container = this.add.container(p.x, p.y, [halo, ring, core, glass, highlight]);
+        // Glossy 3D-ish cylinder pegs (color cycles gold / pink / cyan / lime)
+        const color = PEG_PALETTE[(p.row + p.col) % PEG_PALETTE.length]!;
+        const depthScale = 0.92 + (p.y / height) * 0.14; // slightly larger toward viewer
+        const halo = this.add.circle(0, 0, pegRadius + 5, color, 0.35);
+        const body = this.add.ellipse(0, 1.2, (pegRadius + 1.2) * 2, (pegRadius + 2.2) * 2, color, 1);
+        body.setStrokeStyle(1.2, 0xffffff, 0.35);
+        const top = this.add.ellipse(0, -1.6, (pegRadius + 0.4) * 2, pegRadius * 1.4, 0xffffff, 0.35);
+        const core = this.add.ellipse(0, -0.4, pegRadius * 1.5, pegRadius * 1.1, color, 1);
+        const highlight = this.add.circle(-1.2, -2.0, Math.max(0.8, pegRadius - 2.2), 0xffffff, 0.85);
+        const container = this.add.container(p.x, p.y, [halo, body, core, top, highlight]);
+        container.setScale(depthScale);
         container.setDepth(1);
         this.pegFx.push({ x: p.x, y: p.y, container, halo });
       }
@@ -464,16 +515,12 @@ export async function createPlinkoGame(
       const binW = width / binCount;
       this.binRects = [];
 
-      // Prize shelf — lacquer tray with brass lip
+      // Prize shelf tray
       const shelf = this.add.graphics();
-      shelf.fillStyle(0x0a080c, 0.72);
-      shelf.fillRoundedRect(3, binTop - 6, width - 6, binHeight + 14, 12);
-      shelf.lineStyle(1.5, 0xd4af76, 0.4);
-      shelf.strokeRoundedRect(3, binTop - 6, width - 6, binHeight + 14, 12);
-      shelf.lineStyle(1, 0xc8f542, 0.18);
-      shelf.lineBetween(12, binTop - 5, width - 12, binTop - 5);
-      shelf.fillStyle(0x000000, 0.4);
-      shelf.fillRect(8, binTop + binHeight, width - 16, 5);
+      shelf.fillStyle(0x1c2233, 0.9);
+      shelf.fillRoundedRect(8, binTop - 8, width - 16, binHeight + 18, 16);
+      shelf.lineStyle(3, 0xffe566, 0.85);
+      shelf.strokeRoundedRect(8, binTop - 8, width - 16, binHeight + 18, 16);
       shelf.setDepth(0);
 
       for (let i = 0; i < binCount; i++) {
@@ -491,9 +538,6 @@ export async function createPlinkoGame(
               mask: this.ballCategory,
             },
           });
-          // Slim brass divider tick
-          const tick = this.add.rectangle(binW * i, binTop + binHeight / 2, 1.5, binHeight - 12, 0xd4af76, 0.35);
-          tick.setDepth(2.2);
         }
 
         this.matter.add.rectangle(cx, binTop + binHeight / 2, binW - 2, binHeight - 4, {
@@ -507,88 +551,104 @@ export async function createPlinkoGame(
         });
 
         const color = binColor(mult);
-        const chipW = Math.max(binW - 3.5, 9);
-        const chipH = binHeight - 14;
-        const cy = binTop + binHeight / 2 + 1;
+        const cy = binTop + binHeight / 2 + 2;
+        const holeR = Math.max(7, Math.min(binW * 0.42, 14));
 
-        if (mult >= 20) {
-          const glow = this.add.rectangle(cx, cy, chipW + 4, chipH + 6, color, 0.22);
+        // Glowing ring pocket
+        if (mult >= 8) {
+          const glow = this.add.circle(cx, cy, holeR + 6, color, 0.28);
           glow.setDepth(1);
         }
-
-        // Rounded prize cell
-        const rect = this.add.rectangle(cx, cy, chipW, chipH, color, 0.78);
-        rect.setStrokeStyle(1.25, 0xffffff, mult >= 8 ? 0.28 : 0.12);
-        rect.setDepth(2);
-        // Bevel + bottom shade for arcade chip depth
-        const bevel = this.add.rectangle(cx, cy - chipH / 2 + 1.2, chipW - 2, 2.2, 0xffffff, 0.28);
-        bevel.setDepth(2.5);
-        const shade = this.add.rectangle(cx, cy + chipH / 2 - 1.4, chipW - 2, 2.2, 0x000000, 0.28);
-        shade.setDepth(2.5);
+        const outer = this.add.circle(cx, cy, holeR + 3, color, 0.95);
+        outer.setStrokeStyle(2, 0xffffff, 0.65);
+        outer.setDepth(2);
+        const hole = this.add.circle(cx, cy, holeR, 0x12151f, 0.95);
+        hole.setDepth(2.2);
+        // Use outer as celebrate target (rect API shim via circle)
+        const rect = outer as unknown as {
+          x: number;
+          y: number;
+          active: boolean;
+          setFillStyle: (c: number, a: number) => void;
+          setStrokeStyle: (w: number, c: number, a: number) => void;
+          setScale: (x: number, y?: number) => void;
+        };
 
         this.binRects.push({ rect, baseColor: color, mult });
         const label = this.add
-          .text(cx, cy, formatMult(mult), {
-            fontSize: binCount > 14 ? "8px" : binCount > 12 ? "9px" : "11px",
-            color: mult >= 2 ? "#fffdf7" : "#e5e7eb",
+          .text(cx, cy + holeR + 11, formatMult(mult), {
+            fontSize: binCount > 14 ? "8px" : binCount > 12 ? "9px" : "10px",
+            color: "#fffdf7",
             fontStyle: "bold",
-            fontFamily: "ui-sans-serif, system-ui, sans-serif",
+            fontFamily: "ui-rounded, system-ui, sans-serif",
           })
           .setOrigin(0.5)
           .setDepth(3);
-        label.setShadow(0, 1, "#000000", 2, false, true);
+        label.setStroke("#1a2550", 3);
         label.setAlpha(1);
+        void hole;
       }
     }
 
-    /** Brief flash + spark burst on the settled bin. */
+    /** Flash pocket + coin / star burst on land. */
     celebrateBin(binIndex: number, mult: number) {
       const entry = this.binRects[binIndex];
       if (!entry) return;
       const { rect, baseColor } = entry;
-      const flashColor = mult >= 100 ? 0xffe566 : mult >= 15 ? 0xfff1a8 : 0xc8f542;
-      rect.setFillStyle(flashColor, 0.95);
-      if (mult >= 100) {
-        rect.setStrokeStyle(2, 0xffe566, 1);
-      } else {
-        rect.setStrokeStyle(2.5, 0xffffff, 1);
-      }
+      const flashColor = mult >= 100 ? 0xffe566 : mult >= 15 ? 0xff8fd6 : 0x7dff6a;
+      rect.setFillStyle(flashColor, 1);
+      rect.setStrokeStyle(3, 0xffffff, 1);
       this.tweens.add({
         targets: rect,
-        scaleX: 1.18,
-        scaleY: 1.18,
-        duration: 120,
+        scaleX: 1.28,
+        scaleY: 1.28,
+        duration: 140,
         yoyo: true,
-        ease: "Quad.easeOut",
+        ease: "Back.easeOut",
         onComplete: () => {
           if (!rect.active) return;
           rect.setScale(1);
-          // Settle to chip resting alpha 0.72 (not the old 0.42)
-          rect.setFillStyle(baseColor, 0.72);
-          rect.setStrokeStyle(1.5, baseColor, 0.55);
+          rect.setFillStyle(baseColor, 0.95);
+          rect.setStrokeStyle(2, 0xffffff, 0.65);
         },
       });
 
-      // Lightweight particle burst (circles)
       const cx = rect.x;
       const cy = rect.y;
-      const n = mult >= 100 ? 14 : mult >= 15 ? 14 : mult >= 3 ? 8 : 0;
+      const n = mult >= 100 ? 16 : mult >= 15 ? 14 : mult >= 3 ? 10 : 6;
       for (let i = 0; i < n; i++) {
-        const ang = (Math.PI * 2 * i) / n + Math.random() * 0.2;
-        const dist = 18 + Math.random() * 28;
-        const dot = this.add.circle(cx, cy, 2 + Math.random() * 2.5, flashColor, 0.95);
-        dot.setDepth(20);
+        const ang = -Math.PI / 2 + (Math.PI * 1.2 * (i / Math.max(1, n - 1)) - 0.6);
+        const dist = 28 + Math.random() * 36;
+        const isStar = i % 3 === 0;
+        const coin = this.add.circle(
+          cx,
+          cy,
+          isStar ? 3.5 : 5,
+          isStar ? 0xffffff : 0xffd54a,
+          1,
+        );
+        coin.setStrokeStyle(1.5, isStar ? 0xffe566 : 0xffffff, 0.9);
+        coin.setDepth(25);
         this.tweens.add({
-          targets: dot,
+          targets: coin,
           x: cx + Math.cos(ang) * dist,
-          y: cy + Math.sin(ang) * dist - 10,
+          y: cy + Math.sin(ang) * dist - 20,
           alpha: 0,
-          scale: 0.2,
-          duration: 320 + Math.random() * 180,
+          scale: 0.3,
+          duration: 480 + Math.random() * 220,
           ease: "Quad.easeOut",
-          onComplete: () => dot.destroy(),
+          onComplete: () => coin.destroy(),
         });
       }
+      // Center sparkle flare
+      const flare = this.add.circle(cx, cy, 10, 0xffffff, 0.9).setDepth(26);
+      this.tweens.add({
+        targets: flare,
+        scale: 3.2,
+        alpha: 0,
+        duration: 320,
+        onComplete: () => flare.destroy(),
+      });
     }
 
     private handlePair(a: MatterBody, b: MatterBody) {
@@ -646,14 +706,16 @@ export async function createPlinkoGame(
         startX = Math.min(env.rightX - inset, Math.max(env.leftX + inset, startX));
       }
 
-      // Polished marble: soft lime aura + chrome shell + specular highlight
-      const glow = this.add.circle(startX, spawnY, radius + 7, 0xc8f542, 0.28);
+      // Glossy gold coin ball + soft aura
+      const glow = this.add.circle(startX, spawnY, radius + 8, 0xffe566, 0.35);
       glow.setDepth(4);
-      const visual = this.add.circle(startX, spawnY, radius, 0xeef6c8, 1);
-      visual.setStrokeStyle(1.6, 0xd4af76, 0.85);
+      const visual = this.add.circle(startX, spawnY, radius, 0xffd54a, 1);
+      visual.setStrokeStyle(2, 0xffffff, 0.95);
       visual.setDepth(5);
-      const ballSpec = this.add.circle(startX - 1.6, spawnY - 2.1, radius * 0.32, 0xffffff, 0.75);
+      const ballSpec = this.add.circle(startX - 1.4, spawnY - 2.0, radius * 0.34, 0xffffff, 0.85);
       ballSpec.setDepth(6);
+      const coinInner = this.add.circle(startX, spawnY, radius * 0.45, 0xfff3a0, 0.55);
+      coinInner.setDepth(5.5);
 
       this.matter.add.gameObject(visual, {
         shape: { type: "circle", radius },
@@ -731,7 +793,10 @@ export async function createPlinkoGame(
 
         glow.setPosition(x, y);
         if (ballSpec.active) {
-          ballSpec.setPosition(x - 1.6, y - 2.1);
+          ballSpec.setPosition(x - 1.4, y - 2.0);
+        }
+        if (coinInner.active) {
+          coinInner.setPosition(x, y);
         }
 
         // Short marble trail every 2–3 frames (cap 8 ghosts for perf)
@@ -741,7 +806,7 @@ export async function createPlinkoGame(
             const old = trails.shift();
             if (old?.active) old.destroy();
           }
-          const ghost = this.add.circle(x, y, radius * 0.68, 0xe8f5b0, 0.32);
+          const ghost = this.add.circle(x, y, radius * 0.68, 0xffe566, 0.35);
           ghost.setDepth(4);
           trails.push(ghost);
           this.tweens.add({
@@ -838,6 +903,7 @@ export async function createPlinkoGame(
         this.events.off("update", follow);
         if (glow.active) glow.destroy();
         if (ballSpec.active) ballSpec.destroy();
+        if (coinInner.active) coinInner.destroy();
         for (const t of trails) {
           if (t.active) t.destroy();
         }
