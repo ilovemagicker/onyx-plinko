@@ -146,14 +146,14 @@ body::before {
 }
 
 .plinko-board-frame {
-  border: 3px solid rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(200, 245, 66, 0.18);
   background:
-    radial-gradient(ellipse 80% 40% at 50% 0%, rgba(255, 255, 255, 0.35), transparent 55%),
-    linear-gradient(180deg, #3a4560 0%, #252c40 100%);
+    radial-gradient(ellipse 70% 45% at 50% 0%, rgba(255, 183, 197, 0.16), transparent 55%),
+    linear-gradient(180deg, #1a1222 0%, #0c0c12 100%);
   box-shadow:
-    0 16px 40px -18px rgba(20, 60, 120, 0.55),
-    inset 0 2px 0 rgba(255, 255, 255, 0.35),
-    0 0 0 4px rgba(255, 180, 40, 0.35);
+    0 16px 40px -18px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(200, 245, 66, 0.08),
+    0 0 48px -12px rgba(255, 183, 197, 0.22);
 }
 
 .plinko-title {

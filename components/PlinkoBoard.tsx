@@ -167,14 +167,14 @@ export default function PlinkoBoard({
         "plinko-board-frame relative h-full w-full overflow-hidden rounded-2xl"
       }
     >
-      {/* Soft lacquer wash behind canvas */}
+      {/* Soft sakura / ink wash behind canvas (board shell only; Controls untouched) */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,255,255,0.25),transparent_40%),linear-gradient(180deg,#4a5568_0%,#2a3144_55%,#1c2233_100%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_8%,rgba(255,183,197,0.22),transparent_48%),radial-gradient(ellipse_at_88%_28%,rgba(255,143,171,0.14),transparent_42%),radial-gradient(ellipse_at_50%_70%,rgba(200,245,66,0.06),transparent_55%),linear-gradient(180deg,#1c1224_0%,#0c0c12_72%)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-6 top-0 h-1 rounded-b-full bg-gradient-to-r from-[#ff8fd6] via-[#ffe566] to-[#7dff6a] opacity-90"
+        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/40 to-transparent"
       />
 
       <div
